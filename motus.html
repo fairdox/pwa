@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Le Motx</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        :root {
+            --bg: #121213;
+            --tile-border: #3a3a3c;
+            --correct: #538d4e;
+            --present: #b59f3b;
+            --absent: #3a3a3c;
+            --key-bg: #818384;
+            --cursor: #3399ff;
+        }
+
+        body { 
+            background: var(--bg); color: white; font-family: -apple-system, sans-serif;
+            margin: 0; padding: 0; display: flex; flex-direction: column;
+            height: 100dvh; overflow: hidden; box-sizing: border-box;
+        }
+
+        header { 
+            height: 50px; display: flex; align-items: center; font-weight: bold; 
+            font-size: 22px; border-bottom: 1px solid var(--tile-border); 
+            width: 100%; justify-content: center; flex-shrink: 0;
+            padding-top: env(safe-area-inset-top);
+        }
+
+        #grid-container {
+            flex-grow: 1; display: flex; flex-direction: column-reverse; 
+            justify-content: center; align-items: center;
+        }
+
+        #grid { display: flex; flex-direction: column-reverse; gap: 6px; padding: 10px; }
+        .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+
+        .tile { 
+            width: 54px; height: 54px; border: 2px solid var(--tile-border); 
+            border-radius: 50%; display: flex; justify-content: center; 
+            align-items: center; font-size: 26px; font-weight: bold; 
+            text-transform: uppercase; box-sizing: border-box; transition: background 0.2s;
+        }
+
+        .tile.active-cursor { border-color: var(--cursor); border-width: 3px; }
+
+        .correct { background: var(--correct) !important; border-color: var(--correct) !important; }
+        .present { background: var(--present) !important; border-color: var(--present) !important; }
+        .absent { background: var(--absent) !important; border-color: var(--absent) !important; }
+
+        #keyboard { width: 100%; padding-bottom: env(safe-area-inset-bottom, 20px); flex-shrink: 0; }
+        .kb-row { display: flex; justify-content: center; gap: 4px; margin-bottom: 6px; padding: 0 4px; }
+        
+        .key { 
+            background: var(--key-bg); border-radius: 4px; padding: 16px 0; 
+            flex: 1; max-width: 34px; cursor: pointer; font-weight: bold; 
+            font-size: 14px; text-align: center; -webkit-tap-highlight-color: transparent;
+        }
+        .key-wide { max-width: 55px; flex: 1.5; }
+
+        .invalid { animation: shake 0.5s; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+
+        #new-game-btn {
+            position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+            background: var(--correct); color: white; border: none; padding: 10px 20px; 
+            border-radius: 20px; font-weight: bold; display: none; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <header>LE MOT</header>
+    <button id="new-game-btn" onclick="resetGame()">NOUVEAU MOT</button>
+    <div id="grid-container"><div id="grid"></div></div>
+    <div id="keyboard"></div>
+
+<script src="motus.js"></script>
+<script src="validation.js"></script>
+<script>
+    let validPool = new Set();
+    let pool =[];
+    let targetWord = "";
+    let guesses = [];
+    let letterStatus = {};
+    let currentGuessArr = ["", "", "", "", ""];
+    let cursorIdx = 0;
+    const maxGuesses = 6;
+
+    const grid = document.getElementById('grid');
+    const keyboard = document.getElementById('keyboard');
+    const newGameBtn = document.getElementById('new-game-btn');
+
+    function init() {
+        // 1. Check if the files even loaded
+        if (typeof VALIDATION_LIST === 'undefined') {
+            alert("CRITICAL ERROR: validation.js is not loaded or VALIDATION_LIST is undefined.");
+            return; 
+        }
+        if (typeof DICTIONARY === 'undefined') {
+            alert("CRITICAL ERROR: motus.js is not loaded or DICTIONARY is undefined.");
+            return;
+        }
+        validPool = new Set(VALIDATION_LIST);
+        pool = DICTIONARY;
+        grid.innerHTML = '';
+        for (let i = 0; i < maxGuesses; i++) {
+            const row = document.createElement('div');
+            row.className = 'row';
+            row.id = `row-${i}`;
+            for (let j = 0; j < 5; j++) {
+                const tile = document.createElement('div');
+                tile.className = 'tile';
+                tile.id = `tile-${i}-${j}`;
+                tile.onclick = () => moveCursor(i, j);
+                row.appendChild(tile);
+            }
+            grid.appendChild(row);
+        }
+        resetGame();
+    }
+
+    function moveCursor(rowIdx, colIdx) {
+        if (rowIdx !== guesses.length) return;
+        cursorIdx = colIdx;
+        updateView();
+    }
+
+    function resetGame() {
+
+        //alert(" Pool Size: " + pool.length);
+        targetWord = pool[Math.floor(Math.random() * pool.length)];
+        //alert(" Target: [" + targetWord + "]");
+        guesses = [];
+        letterStatus = {};
+        currentGuessArr = ["", "", "", "", ""];
+        cursorIdx = 0;
+        newGameBtn.style.display = 'none';
+        
+        for(let i=0; i<maxGuesses; i++) {
+            for(let j=0; j<5; j++) {
+                const t = document.getElementById(`tile-${i}-${j}`);
+                t.textContent = ""; t.className = "tile";
+            }
+        }
+        renderKeyboard();
+        updateView();
+    }
+
+    function renderKeyboard() {
+        keyboard.innerHTML = '';
+        const layout = ["QWERTYUIOP", "ASDFGHJKL", "⌫ZXCVBNM↵"];
+        layout.forEach(line => {
+            const row = document.createElement('div');
+            row.className = 'kb-row';
+            [...line].forEach(char => {
+                const key = document.createElement('div');
+                const status = letterStatus[char] || "";
+                key.className = `key ${status}` + (char === '⌫' || char === '↵' ? ' key-wide' : '');
+                key.textContent = char === '⌫' ? 'DEL' : (char === '↵' ? 'ENT' : char);
+                key.onclick = () => handleInput(char);
+                row.appendChild(key);
+            });
+            keyboard.appendChild(row);
+        });
+    }
+
+    function handleInput(char) {
+        if (guesses.length >= maxGuesses) return;
+        if (char === '↵') submitGuess();
+        else if (char === '⌫') {
+            if (currentGuessArr[cursorIdx] === "" && cursorIdx > 0) cursorIdx--;
+            currentGuessArr[cursorIdx] = "";
+            updateView();
+        } else if (/^[A-Z]$/.test(char)) {
+            currentGuessArr[cursorIdx] = char;
+            if (cursorIdx < 4) cursorIdx++;
+            updateView();
+        }
+    }
+
+    function updateView() {
+        const rowIdx = guesses.length;
+        document.getElementById(`row-${rowIdx}`).classList.remove('invalid');
+        for (let i = 0; i < 5; i++) {
+            const tile = document.getElementById(`tile-${rowIdx}-${i}`);
+            tile.textContent = currentGuessArr[i];
+            tile.classList.toggle('active-cursor', i === cursorIdx && guesses.length < maxGuesses);
+        }
+    }
+
+    function submitGuess() {
+        const guess = currentGuessArr.join("");
+
+   
+        if (guess.length !== 5) return;
+
+
+        if (!validPool.has(guess)) {
+            document.getElementById(`row-${guesses.length}`).classList.add('invalid');
+            return;
+        }
+            //alert("validPool Guess: [" + guess + "] | Target: [" + targetWord + "]");
+            //alert("Validation Pool Size: " + validPool.size);
+        const rowIdx = guesses.length;
+        const result = checkGuess(guess, targetWord);
+        
+        for (let i = 0; i < 5; i++) {
+            const char = guess[i];
+            const status = result[i];
+            const tile = document.getElementById(`tile-${rowIdx}-${i}`);
+            tile.classList.remove('active-cursor');
+            tile.classList.add(status);
+
+            if (letterStatus[char] !== 'correct') {
+                if (status === 'correct' || (status === 'present' && letterStatus[char] !== 'present') || !letterStatus[char]) {
+                    letterStatus[char] = status;
+                }
+            }
+        }
+
+        renderKeyboard();
+        guesses.push(guess);
+        currentGuessArr = ["", "", "", "", ""];
+        cursorIdx = 0;
+
+        if (guess === targetWord) {
+            setTimeout(() => { alert("Bravo !"); newGameBtn.style.display = 'block'; }, 250);
+        } else if (guesses.length === maxGuesses) {
+            setTimeout(() => { alert("Le mot était : " + targetWord); newGameBtn.style.display = 'block'; }, 250);
+        } else {
+            updateView();
+        }
+    }
+
+    function checkGuess(guess, target) {
+
+        let results = Array(5).fill("absent");
+        let targetArr = [...target];
+        let guessArr = [...guess];
+        for (let i = 0; i < 5; i++) {
+            if (guessArr[i] === targetArr[i]) {
+                results[i] = "correct";
+                targetArr[i] = null;
+                guessArr[i] = null;
+            }
+        }
+        for (let i = 0; i < 5; i++) {
+            if (guessArr[i] && targetArr.includes(guessArr[i])) {
+                results[i] = "present";
+                targetArr[targetArr.indexOf(guessArr[i])] = null;
+            }
+        }
+        return results;
+    }
+
+    init();
+</script>
+</body>
+</html>

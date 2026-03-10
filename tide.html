@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jampa Tide Walk</title>
+    <link rel="manifest" href="data:application/manifest+json,{'name':'Jampa Tide','short_name':'Tide','start_url':'.','display':'standalone','theme_color':'#0077be'}">
+    <style>
+        body { font-family: -apple-system, sans-serif; text-align: center; padding: 20px; background: #f8fbff; color: #333; }
+        .box { border-radius: 20px; padding: 20px; display: inline-block; margin: 10px; background: white; min-width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .level { font-size: 2.5rem; font-weight: bold; margin: 5px 0; }
+        .label { font-size: 0.9rem; color: #666; font-weight: bold; }
+        
+        /* Timeline Styles */
+        #timeline-container { margin: 30px auto; max-width: 600px; padding: 10px; overflow-x: auto; white-space: nowrap; background: white; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .time-slot { display: inline-block; width: 60px; text-align: center; margin: 0 5px; }
+        .color-bar { height: 40px; border-radius: 8px; margin-bottom: 5px; border: 1px solid #eee; }
+        .time-text { font-size: 0.75rem; color: #444; }
+        .pct-text { font-size: 0.8rem; font-weight: bold; }
+
+        #sync-btn { display: none; margin-top: 20px; padding: 10px 20px; background: #0077be; color: white; border: none; border-radius: 25px; cursor: pointer; }
+        #last-sync { margin-top: 10px; font-size: 0.7rem; color: #aaa; }
+    </style>
+</head>
+<body>
+    <h1>João Pessoa Tide</h1>
+    
+    <div class="box">
+        <div class="label">Now</div>
+        <div id="current" class="level">--%</div>
+    </div>
+
+    <div class="box">
+        <div class="label">In 1 Hour</div>
+        <div id="future" class="level">--%</div>
+    </div>
+
+    <h3>Next 8 Hours</h3>
+    <div id="timeline-container">
+        <div id="timeline"></div>
+    </div>
+
+    <button id="sync-btn" onclick="manualSync()">Update Now</button>
+    <div id="last-sync">Last update: --:--:--</div>
+
+    <script>
+        const REF_HIGH_TIDE = new Date('2026-03-05T05:19:00-03:00').getTime();
+        const LUNAR_CYCLE_HRS = 12.4206; 
+
+        function getTidePercentage(date) {
+            const msSinceRef = date.getTime() - REF_HIGH_TIDE;
+            const hoursSinceRef = msSinceRef / (1000 * 60 * 60);
+            const angle = (2 * Math.PI * hoursSinceRef) / LUNAR_CYCLE_HRS;
+            const cosVal = Math.cos(angle);
+            return Math.round((cosVal + 1) * 50);
+        }
+
+        function getTideColor(pct) {
+            if (pct >= 40) return "#ff4d4d"; // Solid Red for 40%+
+            // Interpolate Green (0, 200, 0) to Red (255, 0, 0) based on 0-40 scale
+            const ratio = pct / 40;
+            const r = Math.round(255 * ratio);
+            const g = Math.round(200 * (1 - ratio));
+            return `rgb(${r}, ${g}, 0)`;
+        }
+
+        function updateUI() {
+            const now = new Date();
+            const timeline = document.getElementById('timeline');
+            timeline.innerHTML = '';
+
+            // Update Main Displays
+            const curPct = getTidePercentage(now);
+            const futPct = getTidePercentage(new Date(now.getTime() + 3600000));
+            
+            const curEl = document.getElementById('current');
+            curEl.innerText = curPct + '%';
+            curEl.style.color = getTideColor(curPct);
+
+            const futEl = document.getElementById('future');
+            futEl.innerText = futPct + '%';
+            futEl.style.color = getTideColor(futPct);
+
+            // Generate 8-hour timeline (30 min increments)
+            for (let i = 0; i <= 16; i++) {
+                const time = new Date(now.getTime() + (i * 30 * 60000));
+                const pct = getTidePercentage(time);
+                const color = getTideColor(pct);
+                
+                const slot = document.createElement('div');
+                slot.className = 'time-slot';
+                slot.innerHTML = `
+                    <div class="color-bar" style="background-color: ${color}"></div>
+                    <div class="pct-text" style="color: ${color}">${pct}%</div>
+                    <div class="time-text">${time.getHours()}:${time.getMinutes().toString().padStart(2, '0')}</div>
+                `;
+                timeline.appendChild(slot);
+            }
+            
+            document.getElementById('last-sync').innerText = `Last update: ${now.toLocaleTimeString()}`;
+        }
+
+        function manualSync() {
+            updateUI();
+            document.getElementById('sync-btn').style.display = 'none';
+            setTimeout(showButton, 60000);
+        }
+
+        function showButton() { document.getElementById('sync-btn').style.display = 'inline-block'; }
+
+        updateUI();
+        setTimeout(showButton, 60000);
+
+        if ('serviceWorker' in navigator) {
+            const sw = 'data:application/javascript,self.addEventListener("fetch", (e) => e.respondWith(fetch(e.request)))';
+            navigator.serviceWorker.register(`data:application/javascript;base64,${btoa(sw)}`);
+        }
+    </script>
+</body>
+</html>

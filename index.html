@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Fret Trainer Pro</title>
+    <style>
+        body { margin: 0; background: black; overflow: hidden; touch-action: none; font-family: sans-serif; color: white; }
+        canvas { display: block; }
+        
+        .ui-layer { 
+            position: absolute; 
+            bottom: 15px; 
+            left: 20px; 
+            right: 20px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            pointer-events: none; 
+            z-index: 50; 
+        }
+
+        .btn-group { display: flex; gap: 8px; pointer-events: auto; }
+
+        button { 
+            padding: 8px 10px; 
+            background: #333; 
+            color: white; 
+            border: 1px solid #555; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            cursor: pointer;
+        }
+
+        #optionsMenu {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            color: white;
+            text-align: center;
+            padding-top: 50px;
+            pointer-events: auto;
+        }
+
+        .option-row { margin: 25px 0; }
+        .option-row label { font-size: 1.2em; cursor: pointer; }
+        .option-row input { transform: scale(1.6); margin-right: 15px; vertical-align: middle; }
+    </style>
+</head>
+<body>
+
+<canvas id="fretboard"></canvas>
+
+<div class="ui-layer">
+    <div class="btn-group">
+        <button id="optionsBtn" onclick="toggleMenu(true)">Opt.</button>
+        <button onclick="switchGame('extreme')">Ext</button>
+        <button onclick="switchGame('keyboard')">Kbd</button>
+        <button onclick="switchGame('interval')">Int</button>
+        <button onclick="switchGame('section')">Sec</button>
+        <button onclick="switchGame('classic')">C</button>
+        <button onclick="switchGame('single')">Sin</button>
+        <button onclick="game.reset()">Reset</button>
+    </div>
+</div>
+
+<div id="optionsMenu">
+    <h2>SETTINGS</h2>
+    <div class="option-row">
+        <label><input type="checkbox" id="debugToggle" onchange="game.showDebug = this.checked"> Show Debug Stats</label>
+    </div>
+    <div class="option-row">
+        <label><input type="checkbox" id="cheatToggle" onchange="game.showNotes = this.checked"> Cheat Mode (Hints)</label>
+    </div>
+    <div class="option-row">
+        <label><input type="checkbox" id="historyToggle" onchange="game.showHistory = this.checked" checked> Show Tap History</label>
+    </div>
+    <div class="option-row">
+        <label><input type="checkbox" id="permission3D" onchange="requestOrientation(this.checked)" checked> 3D effect</label>
+    </div>    
+    
+    <button onclick="toggleMenu(false)" style="margin-top:30px; padding:15px 40px; font-size: 1.1em; background: #444; border-radius: 10px;">CLOSE & RESUME</button>
+    <br><br>
+    <button onclick="clearFretStats()" style="background: #622; border-color: #844; font-size: 0.8em;">Clear All Progress</button>
+
+    <button id="tiltBtn" onclick="enableTilt()">Enable 3D Tilt</button>
+
+</div>
+<script src="variants.js?v=1.3"></script>
+<script>
+const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const STRINGS = [4, 9, 2, 7, 11, 4]; 
+const MARKERS = [3, 5, 7, 9, 12];
+    
+class FretboardEngine {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.marginX = 25;
+        this.marginTop = 30; 
+        this.marginBottom = 60;
+        this.fretPositions = [];
+        this.variant = null;
+        
+        this.score = 0;
+        this.history = [];
+        this.animations = [];
+        this.tappedKeys = new Set();
+        this.gameActive = true;
+        this.isPaused = false;
+        this.autoPauseDuration = 10000; // 10 sec by default
+        this.isAutoPaused = false; // auto pause after n seconds without tap
+        this.lastTapTime = Date.now();
+        
+        this.showNotes = false;
+        this.showDebug = true;
+        this.showHistory = true;
+        this.show3D = false;
+        this.hasFret= true;
+        
+        this.stats = JSON.parse(localStorage.getItem('fretStats')) || {};
+        this.tiltX = 0;
+        this.tiltY = 0;
+        this.mistakes = 0; // Reset mistake counter
+        this.perfectAnim=null;
+        this.viewHeightFactor = 1.0; // fretboard height Default to 100% of canvas height
+        this.viewWidthFactor = 0.8; 
+        this.avg= null;
+        this.maxAvg= null;
+        this.avgReactionTime= null;
+        this.totalFound= 0;
+        this.totalDelay= 0;
+
+        this.lastTapX = null;
+        this.lastTapY = null;
+        this.tapCircleRadius = 0; // For a little "ripple" effect
+        
+        // 3D effect needs https connection
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', (e) => {
+                // We divide by a factor (e.g., 10) to keep the movement subtle
+                this.tiltX = e.gamma / 10; 
+                this.tiltY = e.beta / 10;
+            });
+        }
+                
+        window.addEventListener('resize', () => this.resize());
+        this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e), {passive: false});
+        this.resize();
+    }
+
+    resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.calculateFrets();
+    }
+
+    getOffsetX() {
+        const activeW = this.canvas.width * (this.viewWidthFactor || 1.0);
+        return (this.canvas.width - activeW) / 2;
+    }
+
+    getFretCoordinates(sIdx, fIdx) {
+        const fullW = this.canvas.width;
+        const activeW = fullW * (this.viewWidthFactor || 1.0);
+        const offsetX = (fullW - activeW) / 2;
+        
+        const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
+        const x = offsetX + this.marginX + 10 + (sIdx * spacingX);
+        const y = (this.fretPositions[fIdx] + this.fretPositions[fIdx - 1]) / 2;
+    //this.variant.label=` >>${sIdx} ${fIdx} ${x} ${y}`;        
+        return { x, y };
+    }
+
+    getNoteCoordinates(noteName, sIdx) {
+        // Running backwards (12 down to 0) favors the higher fret over the open string
+        for (let f = 12; f >= 0; f--) {
+            if (NOTES[(STRINGS[sIdx] + f) % 12] === noteName) {
+                return this.getFretCoordinates(sIdx, f);
+            }
+        }
+        return null;
+    }
+
+    calculateFrets() {
+        this.fretPositions = [];
+        
+        // 1. Determine the effective canvas height based on the factor
+        const factor = this.viewHeightFactor || 1.0;
+        const effectiveHeight = this.canvas.height * factor;
+    
+        // 2. Calculate available space within that restricted area
+        const availH = effectiveHeight - this.marginTop - this.marginBottom;
+        
+        // 3. The 'scale' determines the total length of the 12 frets
+        // 0.5 is the mathematical constant for a 12-fret octave span
+        const scale = availH / 0.5; 
+    
+        for (let i = 0; i <= 12; i++) {
+            // Formula for logarithmic fret spacing
+            const dist = scale * (1 - Math.pow(2, -(i / 12)));
+            this.fretPositions.push(this.marginTop + dist);
+        }
+    }
+    
+    reset(keepScore = false) {
+        this.history = [];
+        this.animations = [];
+        this.tappedKeys.clear();
+        this.gameActive = true;
+        this.isAutoPaused = false;
+        this.lastTapTime = Date.now();
+        if (!keepScore) this.score = 0;
+        if (this.variant) this.variant.init(this);
+    }
+
+    handleTouch(e) {
+        if (this.isAutoPaused) {
+
+            this.reset(true);
+            this.variant.init(this); 
+            return;
+        }
+    
+        this.lastTapTime = Date.now();
+        if (!this.gameActive || this.isPaused) return;
+        e.preventDefault();
+    
+        const rect = this.canvas.getBoundingClientRect();
+
+        
+        const tx = Math.round(e.touches[0].clientX - rect.left) 
+        const ty = Math.round(e.touches[0].clientY - rect.top);
+// Convert screen coordinates to Canvas coordinates
+//    this.lastTapX = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
+//    this.lastTapY = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
+    this.lastTapX = tx;
+    this.lastTapY = ty;
+    this.tapCircleRadius = 20; // Reset the radius for the visual effect
+        
+        const spacingX = (this.canvas.width - (this.marginX + 10) * 2) / 5;
+        
+        // 1. Check if the touch is within the Fretboard boundaries
+        let fIdx = -1;
+        for (let i = 1; i <= 12; i++) {
+            if (ty >= this.fretPositions[i-1] && ty <= this.fretPositions[i]) { 
+                fIdx = i; 
+                break; 
+            }
+        }
+    
+        const sIdx = Math.round((tx - (this.marginX + 10)) / spacingX);
+    
+        // 2. Logic Branching
+        if (this.hasFret && sIdx >= 0 && sIdx < 6 && fIdx !== -1) {
+            // Standard Fretboard Tap
+            const key = `${sIdx}-${fIdx}`;
+            if (this.tappedKeys.has(key)) return;
+            
+            this.tappedKeys.add(key);
+            const noteName = NOTES[(STRINGS[sIdx] + fIdx) % 12];
+            const x = this.marginX + 10 + (sIdx * spacingX);
+            const y = (this.fretPositions[fIdx] + this.fretPositions[fIdx-1]) / 2;
+
+            //this.variant.label=`> ${x} ${y} `;
+            this.variant.onTap(this, sIdx, fIdx, noteName, x, y);
+                        
+        } else {
+            // 3. UI/Keyboard Tap (Outside the frets)
+            // We pass the corrected tx and ty so variant.onTap can check its buttons
+
+            //this.variant.label=`>> ${tx} ${ty} `;
+            if (this.variant && this.variant.onTap) {
+                this.variant.onTap(this, null, null, null, tx, ty);
+            }
+        }
+    }
+
+    animate(x, y, name, color) {
+        this.animations.push({ x, y, name, color, startTime: Date.now() });
+    }
+
+    getSectionCenterY(startFret, endFret) {
+        const top = this.fretPositions[startFret - 1];
+        const bottom = this.fretPositions[endFret];
+        return (top + bottom) / 2;
+    }
+    drawTapDebug() {
+        if (this.lastTapX === null || this.tapCircleRadius <= 0) return;
+    
+        const ctx = this.ctx;
+        ctx.save();
+        
+        // Draw a crosshair
+        ctx.strokeStyle = "rgba(255, 0, 0, 0.8)";
+        ctx.lineWidth = 2;
+        
+        ctx.beginPath();
+        // Horizontal line
+        ctx.moveTo(this.lastTapX - 15, this.lastTapY);
+        ctx.lineTo(this.lastTapX + 15, this.lastTapY);
+        // Vertical line
+        ctx.moveTo(this.lastTapX, this.lastTapY - 15);
+        ctx.lineTo(this.lastTapX, this.lastTapY + 15);
+        ctx.stroke();
+    
+        // Draw an expanding/fading circle
+        ctx.beginPath();
+        ctx.arc(this.lastTapX, this.lastTapY, 25 - this.tapCircleRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255, 0, 0, ${this.tapCircleRadius / 20})`;
+        ctx.stroke();
+    
+        ctx.restore();
+    
+        // Slowly fade the debug indicator
+        this.tapCircleRadius -= 0.5;
+    }
+    
+    drawHeatMap() {
+        const ctx = this.ctx;
+        const fullW = this.canvas.width;
+        const activeW = fullW * (this.viewWidthFactor || 1.0);
+        const offsetX = (fullW - activeW) / 2; // The gap to the left of the centered area
+
+        const spacingX = (activeW - this.marginX * 2) / 5;
+    
+        let scores = Object.values(this.stats).filter(s => s !== -1);
+        if (scores.length === 0) return;
+    
+        const minScore = Math.min(...scores);
+        const maxScore = Math.max(...scores);
+        const range = maxScore - minScore || 1;
+    
+        ctx.save();
+        ctx.globalCompositeOperation = "screen"; 
+    
+        for (let s = 0; s < 6; s++) {
+            const x = this.marginX + (s * spacingX);
+            
+            // Loop through 12 fret spaces (0 to 11)
+            for (let f = 0; f < 12; f++) {
+                // Calculate the note for this fret space
+                // (f+1 because f=0 is the first fret space, which is 1 semi-tone up from open)
+                const noteName = NOTES[(STRINGS[s] + (f + 1)) % 12];
+                const score = this.stats[`S${s}-${noteName}`] ?? -1;
+    
+                if (score === -1) continue;
+    
+                const normalized = (score - minScore) / range;
+                const hue = normalized * 120; 
+    
+                // Calculate the midpoint between current fret wire and the next one
+                const yStart = this.fretPositions[f];
+                const yEnd = this.fretPositions[f + 1];
+                const yCenter = (yStart + yEnd) / 2;
+    
+                const grad = ctx.createRadialGradient(x+offsetX, yCenter, 0, x+offsetX, yCenter, 22);
+                grad.addColorStop(0, `hsla(${hue}, 100%, 50%, 0.6)`);
+                grad.addColorStop(0.4, `hsla(${hue}, 100%, 50%, 0.3)`);
+                grad.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
+    
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(x+offsetX, yCenter, 25, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    }   
+    draw() {
+        requestAnimationFrame(() => this.draw());
+        if (this.isPaused) return;
+    
+        const now = Date.now();
+        const idleTime = now - this.lastTapTime;
+        const ctx = this.ctx;
+        
+        // 1. Calculate dimensions and Horizontal Centering
+        const fullW = this.canvas.width;
+        const activeW = fullW * (this.viewWidthFactor || 1.0);
+        const offsetX = (fullW - activeW) / 2; // The gap to the left of the centered area
+        const h = this.canvas.height;
+        
+        const factor = this.viewHeightFactor || 1.0;
+        const fbHeight = h * factor;
+    
+        // Clear the entire canvas
+        ctx.clearRect(0, 0, fullW, h);
+       
+    
+        if (this.variant && this.variant.render) {
+            this.variant.render(this, fbHeight); 
+        }
+        
+        if (this.showDebug && this.isAutoPaused) {
+            this.renderStats(true);
+        } else {
+             this.renderStats(false);
+        }
+
+        if (this.hasFret){
+    
+            // 2. Draw Frets/Markers (applying offsetX)
+            ctx.strokeStyle = "#444";
+            this.fretPositions.forEach((y, i) => {
+                const scaledY = y;
+                ctx.lineWidth = i === 0 ? 6 : 2;
+                ctx.beginPath(); 
+                // Start at offsetX + margin, end at offsetX + activeW - margin
+                ctx.moveTo(offsetX + this.marginX, scaledY); 
+                ctx.lineTo(offsetX + activeW - this.marginX, scaledY); 
+                ctx.stroke();
+        
+                if (MARKERS.includes(i) && i > 0) {
+                    const prevScaledY = this.fretPositions[i-1];
+                    const midY = (scaledY + prevScaledY) / 2;
+                    ctx.fillStyle = "#777";
+                    ctx.beginPath();
+                    // Center markers relative to the active area
+                    const markerCenterX = offsetX + (activeW / 2);
+                    const sideWidth = activeW / 5 / 4.5; // 5 spacing between the 6 strings
+                    if (i === 12) {
+                        ctx.arc(markerCenterX - sideWidth, midY, 6, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(markerCenterX + sideWidth, midY, 6, 0, Math.PI*2);
+                    } else { 
+                        ctx.arc(markerCenterX, midY, 6, 0, Math.PI*2); 
+                    }
+                    ctx.fill();
+                }
+            });
+        
+            // 3. Draw Strings (applying offsetX)
+            const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
+            for (let i = 0; i < 6; i++) {
+                ctx.strokeStyle = "#888";
+                ctx.lineWidth = 1 + ((5 - i) * 0.5);
+                const x = offsetX + this.marginX + 10 + (i * spacingX);
+                ctx.beginPath(); 
+                ctx.moveTo(x, this.fretPositions[0]); 
+                ctx.lineTo(x, this.fretPositions[12]); 
+                ctx.stroke();
+            }
+        
+            // 4. Draw History & Animations (applying offsetX if they aren't already absolute)
+            if (this.showHistory) {
+                this.history.forEach(h => this.drawNode(h.x, h.y, h.name, h.color, 18));
+            }
+        
+            this.animations = this.animations.filter(a => {
+                const p = Math.min((now - a.startTime) / 400, 1);
+                this.drawNode(a.x, a.y, a.name, a.color, 80 - (p * 62), 1 - p);
+                return p < 1;
+            });
+        }
+    
+        // ... [Perfect Animation remains centered to fullW] ...
+        if (this.perfectAnim) {
+            const elapsed = now - this.perfectAnim.startTime;
+            const p = elapsed / this.perfectAnim.duration;
+            if (p < 1) {
+                const scale = 1 + Math.sin(p * Math.PI) * 2;
+                const alpha = Math.sin(p * Math.PI);
+                ctx.save();
+                ctx.translate(fullW / 2, h / 2); // Center to the real screen center
+                ctx.rotate(p * -45 * Math.PI / 180);
+                ctx.scale(scale, scale);
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = "#FFD700";
+                ctx.font = "bold 40px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText(this.perfectAnim.message, 0, 0);
+                ctx.restore();
+            } else { this.perfectAnim = null; }
+        }
+    
+        // 5. Update Hints (applying offsetX)
+        if ((this.score < -20 || this.showNotes) && this.variant && this.variant.targetNote) {
+            const elapsed = now - this.variant.tapTime;
+            if (elapsed > 2500) {
+                ctx.font = "bold 18px sans-serif";
+                ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+                ctx.textAlign = "center";
+                for (let s = 0; s < 6; s++) {
+                    for (let f = 1; f <= 12; f++) {
+                        if (NOTES[(STRINGS[s] + f) % 12] === this.variant.targetNote) {
+                            const x = offsetX + this.marginX + 10 + (s * spacingX);
+                            const y = (this.fretPositions[f] + this.fretPositions[f - 1]) / 2;
+                            ctx.fillText(this.variant.targetNote, x, y + 6);
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- AUTO-PAUSE LOGIC ---
+        if (this.gameActive && !this.isAutoPaused) {
+            if (idleTime > this.autoPauseDuration) { 
+                this.isAutoPaused = true;
+                this.gameActive = false;
+            }
+        }
+        
+        // Visual feedback for the pause (Darken and Overlay)
+        if (this.isAutoPaused) {
+            // Optional: Dim the background slightly
+            ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+            ctx.fillRect(0, 0, fullW, h);
+        
+            ctx.fillStyle = "white";
+            ctx.font = "bold 20px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("PAUSED", fullW / 2, h / 2);
+            ctx.font = "12px sans-serif";
+            ctx.fillText("Tap anywhere to resume", fullW / 2, h / 2 + 40);
+        }
+        
+        if (this.showDebug && this.isAutoPaused) {
+            this.drawHeatMap(); // Draw the stats heatmap while idle
+        }
+
+            //3D effect 
+        if (this.show3D){
+            for (let i = 0; i < 6; i++) {
+                const x = this.marginX + (i * spacingX) + (this.tiltX * i); // Strings shift as you tilt
+                ctx.beginPath();
+                ctx.moveTo(x, this.fretPositions[0]);
+                ctx.lineTo(x, this.fretPositions[12]);
+                ctx.stroke();
+            } 
+        }  
+        this.drawTapDebug();
+        // Top UI
+        ctx.fillStyle = "white";
+        ctx.font = "bold 14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(`SCORE: ${Math.round(this.score)}  |  ${this.variant ? this.variant.label : ""}`, fullW / 2, 25);
+    }
+
+    drawNode(x, y, name, color, size, alpha = 1) {
+        this.ctx.globalAlpha = alpha;
+        this.ctx.fillStyle = color;
+        this.ctx.beginPath(); this.ctx.arc(x, y, size, 0, Math.PI * 2); this.ctx.fill();
+        this.ctx.fillStyle = alpha < 1 ? "white" : "black";
+        this.ctx.font = `bold ${Math.max(12, size * 0.7)}px Arial`;
+        this.ctx.textAlign = "center"; this.ctx.textBaseline = "middle";
+        this.ctx.fillText(name, x, y);
+        this.ctx.globalAlpha = 1;
+    }
+
+    
+    triggerPerfect(msg) {
+        this.perfectAnim = {
+            startTime: Date.now(),
+            duration: 1500,
+            message: msg
+        };
+    }
+
+    // Inside FretboardEngine
+    processResult(isCorrect, data) {
+        const { visualX, visualY, noteName, sIdx, distance } = data;
+        const now = Date.now();
+        const delay = now - this.variant.startTime;
+    
+        if (isCorrect) {
+            // Handle Scoring
+            const speedBonus = Math.max(0, 100 - (delay / 100));
+            const final = Math.round(Math.max(0, this.score) + speedBonus);
+            
+            // Update Stats
+            this.totalFound++;
+            this.totalDelay += delay;
+            this.avgReactionTime = this.totalDelay / this.totalFound / 1000;
+            
+            const key = `S${sIdx}-${noteName}`;
+            const existing = this.stats[key];
+            this.stats[key] = existing === undefined ? final : Math.round((final + existing) / 2);
+            
+            // Effects & Storage
+            this.history.push({ x: visualX, y: visualY, name: noteName, color: "#4CAF50" });
+            this.animate(visualX, visualY, noteName, "#4CAF50");
+            localStorage.setItem('fretStats', JSON.stringify(this.stats));
+            
+            this.gameActive = false;
+            setTimeout(() => this.reset(true), 1000);
+        } else {
+            // Handle Penalties
+            const penalty = distance ? distance * 10 : 20; 
+            this.score -= penalty;
+            this.mistakes++;
+            this.history.push({ x: visualX, y: visualY, name: noteName, color: "#FF5252" });
+            //this.variant.label=` ${visualX}-${visualY} ${noteName} `;
+            this.animate(visualX, visualY, noteName, "#FF5252");
+        }
+    }
+
+    getWorstCombos(limit) {
+        let unplayed = [], played = [];
+        for (let s = 0; s < 6; s++) {
+            NOTES.forEach(n => {
+                const score = this.stats[`S${s}-${n}`] ?? -1;
+                const item = { sIdx: s, note: n, score: score };
+                if (score === -1) unplayed.push(item);
+                else played.push(item);
+            });
+        }
+        if (unplayed.length > 0) return unplayed.sort(() => Math.random() - 0.5).slice(0, limit);
+        return played.sort((a, b) => a.score - b.score).slice(0, limit);
+    }
+    
+    renderStats(full) {
+        let all = [];
+        let sum = 0, count = 0;
+        const ctx = this.ctx;
+        const w = this.canvas.width;
+        for (let s = 0; s < 6; s++) {
+            NOTES.forEach(n => {
+                const val = this.stats[`S${s}-${n}`] ?? -1;
+                all.push({ label: `S${s+1}-${n}`, score: val });
+                if(val !== -1) { sum += val; count++; }
+            });
+        }
+        
+        this.avg = count > 0 ? Math.round(sum / count) : 0;
+        const sorted = all.sort((a, b) => a.score - b.score);
+        const worst10 = sorted.slice(0, 10);
+        const best10 = sorted.filter(x => x.score !== -1).reverse().slice(0, 10);
+        if (this.maxAvg==null) this.maxAvg = this.avg; 
+        if (this.avg > this.maxAvg) {
+            this.maxAvg= this.avg;
+            this.triggerPerfect(`HIGH: ${this.avg}`);
+        }
+        
+        ctx.textAlign = "right";
+        ctx.font = "bold 14px monospace";
+        ctx.fillStyle = "#FFD700";
+        let y = 50; // Starting vertical position
+        const lineHeight = 15;
+        
+        // Header Stats
+        ctx.textAlign = "right";
+        ctx.font = "bold 14px monospace";
+        ctx.fillStyle = "#FFD700";
+        ctx.fillText(`AVG PROGRESS: ${this.avg}`, w - 10, y); y += lineHeight;
+        ctx.fillText(`HIGH AVG    : ${this.maxAvg}`, w - 10, y);y += lineHeight;
+        ctx.fillText(`REACTION AVG: ${(this.avgReactionTime || 0).toFixed(1)}`, w - 10, y);
+
+        if (! full) return;
+        
+        y += lineHeight + 5; 
+        
+        // Worst 10 List
+        ctx.font = "13px monospace";
+        ctx.fillStyle = "#FF5252";
+        ctx.fillText("--- WORST 10 ---", w - 10, y); y += lineHeight;
+        
+        worst10.forEach((obj) => {
+            ctx.fillStyle = obj.score === -1 ? "#666" : "#FF5252";
+            ctx.fillText(`${obj.label}: ${obj.score === -1 ? "--" : obj.score}`, w - 10, y); y += lineHeight;
+        });
+        
+        y += 10; // Extra gap between lists
+        
+        // Best 10 List
+        ctx.fillStyle = "#4CAF50";
+        ctx.fillText("--- BEST 10 ---", w - 10, y); y += lineHeight;
+        best10.forEach((obj) => {
+                    ctx.fillStyle = "#4CAF50";
+                    ctx.fillText(`${obj.label}: ${obj.score}`, w - 10, y);y += lineHeight;
+        });
+    }
+}
+
+
+    
+const game = new FretboardEngine(document.getElementById('fretboard'));
+
+function toggleMenu(show) {
+    document.getElementById('optionsMenu').style.display = show ? 'block' : 'none';
+    game.isPaused = show;
+    if (show) {
+        document.getElementById('debugToggle').checked = game.showDebug;
+        document.getElementById('cheatToggle').checked = game.showNotes;
+        document.getElementById('historyToggle').checked = game.showHistory;
+        document.getElementById('permission3D').checked = game.show3D;
+        game.pauseTime = Date.now();
+    } else if (game.variant && game.variant.startTime) {
+        game.variant.startTime += (Date.now() - game.pauseTime);
+    }
+}
+
+async function requestOrientation(show) {
+    game.show3D= show;
+    if (! show) return;
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const permission = await DeviceOrientationEvent.requestPermission();
+        alert(permission);
+        if (permission === 'granted') {
+            game.show3D= true;
+        }else{
+            game.show3D= false;
+            game.showDebug= false;
+        }
+    }
+}
+
+function switchGame(type) {
+    if (type === 'section') SectionVariant.range = null;
+    game.viewHeightFactor=1.0;
+    game.viewWidthFactor=1.0;    
+    game.hasFret=true;
+    game.autoPauseDuration=10000;
+    if (type === 'classic') game.variant = ClassicVariant;
+    else if (type === 'section' ) game.variant = SectionVariant;
+    else if (type === 'single'  ) game.variant = SingleStringVariant;
+    else if (type === 'interval') {
+        game.variant = IntervalVariant;
+        game.hasFret=false;
+        game.autoPauseDuration=3600000;
+    }
+    else if (type === 'keyboard') {
+        game.variant = KeyboardVariant;
+        game.viewHeightFactor=0.8;
+        game.viewWidthFactor=0.8;
+
+    }
+    else if (type === 'extreme') {
+        game.variant = ExtremeAccidentalVariant;
+        game.hasFret=false;
+        game.autoPauseDuration=3600000;
+    }
+    game.calculateFrets() 
+    game.reset();
+}
+
+function clearFretStats() {
+    if(confirm("Delete all progress?")) {
+        localStorage.removeItem('fretStats');
+        game.stats = {};
+        game.reset();
+        toggleMenu(false);
+    }
+}
+
+switchGame('extreme');
+game.draw();
+</script>
+</body>
+</html>

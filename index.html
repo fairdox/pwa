@@ -60,12 +60,11 @@
 <div class="ui-layer">
     <div class="btn-group">
         <button id="optionsBtn" onclick="toggleMenu(true)">Opt.</button>
-        <button onclick="switchGame('extreme')">Ext</button>
-        <button onclick="switchGame('keyboard')">Kbd</button>
-        <button onclick="switchGame('interval')">Int</button>
-        <button onclick="switchGame('section')">Sec</button>
-        <button onclick="switchGame('classic')">C</button>
-        <button onclick="switchGame('single')">Sin</button>
+        <button onclick="switchGame('extreme')" >G1</button>
+        <button onclick="switchGame('keyboard')">G2</button>
+        <button onclick="switchGame('interval')">G3</button>
+        <button onclick="switchGame('section')">G4</button>
+        <button onclick="switchGame('single')">G5</button>
         <button onclick="game.reset()">Reset</button>
     </div>
 </div>
@@ -92,7 +91,7 @@
     <button id="tiltBtn" onclick="enableTilt()">Enable 3D Tilt</button>
 
 </div>
-<script src="variants.js?v=1.3"></script>
+<script src="variants.js?v=1.4"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
@@ -219,10 +218,25 @@ class FretboardEngine {
         if (!keepScore) this.score = 0;
         if (this.variant) this.variant.init(this);
     }
-
+    getFretboardLayout() {
+        const fullW = this.canvas.width;
+        const activeW = fullW * (this.viewWidthFactor || 1.0);
+        const offsetX = (fullW - activeW) / 2;
+        const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
+        const firstStringX = offsetX + this.marginX + 10;
+    
+        return { firstStringX, spacingX };
+    }
+    getStringX(stringNum){
+        const fullW = this.canvas.width;
+        const activeW = fullW * (this.viewWidthFactor || 1.0);
+        const offsetX = (fullW - activeW) / 2; // The gap to the left of the centered area
+        const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
+        return (offsetX + this.marginX + 10 + (stringNum * spacingX)) ;
+    }
     handleTouch(e) {
         if (this.isAutoPaused) {
-
+ 
             this.reset(true);
             this.variant.init(this); 
             return;
@@ -237,14 +251,9 @@ class FretboardEngine {
         
         const tx = Math.round(e.touches[0].clientX - rect.left) 
         const ty = Math.round(e.touches[0].clientY - rect.top);
-// Convert screen coordinates to Canvas coordinates
-//    this.lastTapX = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
-//    this.lastTapY = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
-    this.lastTapX = tx;
-    this.lastTapY = ty;
-    this.tapCircleRadius = 20; // Reset the radius for the visual effect
-        
-        const spacingX = (this.canvas.width - (this.marginX + 10) * 2) / 5;
+        this.lastTapX = tx;
+        this.lastTapY = ty;
+        this.tapCircleRadius = 20; // Reset the radius for the visual effect
         
         // 1. Check if the touch is within the Fretboard boundaries
         let fIdx = -1;
@@ -254,8 +263,9 @@ class FretboardEngine {
                 break; 
             }
         }
-    
-        const sIdx = Math.round((tx - (this.marginX + 10)) / spacingX);
+
+        const { firstStringX, spacingX } = this.getFretboardLayout();
+        const sIdx = Math.round((tx - firstStringX) / spacingX);
     
         // 2. Logic Branching
         if (this.hasFret && sIdx >= 0 && sIdx < 6 && fIdx !== -1) {
@@ -436,11 +446,11 @@ class FretboardEngine {
             });
         
             // 3. Draw Strings (applying offsetX)
-            const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
+            const { firstStringX, spacingX } = this.getFretboardLayout();
             for (let i = 0; i < 6; i++) {
                 ctx.strokeStyle = "#888";
                 ctx.lineWidth = 1 + ((5 - i) * 0.5);
-                const x = offsetX + this.marginX + 10 + (i * spacingX);
+                let x = this.getStringX(i);
                 ctx.beginPath(); 
                 ctx.moveTo(x, this.fretPositions[0]); 
                 ctx.lineTo(x, this.fretPositions[12]); 
@@ -566,7 +576,7 @@ class FretboardEngine {
     processResult(isCorrect, data) {
         const { visualX, visualY, noteName, sIdx, distance } = data;
         const now = Date.now();
-        const delay = now - this.variant.startTime;
+        const  delay = now - this.variant.startTime;
     
         if (isCorrect) {
             // Handle Scoring
@@ -676,8 +686,6 @@ class FretboardEngine {
         });
     }
 }
-
-
     
 const game = new FretboardEngine(document.getElementById('fretboard'));
 
@@ -713,12 +721,16 @@ async function requestOrientation(show) {
 function switchGame(type) {
     if (type === 'section') SectionVariant.range = null;
     game.viewHeightFactor=1.0;
-    game.viewWidthFactor=1.0;    
+    game.viewWidthFactor=0.8;    
     game.hasFret=true;
     game.autoPauseDuration=10000;
-    if (type === 'classic') game.variant = ClassicVariant;
-    else if (type === 'section' ) game.variant = SectionVariant;
-    else if (type === 'single'  ) game.variant = SingleStringVariant;
+    if (type === 'section' ) {
+        game.variant = SectionVariant;
+    }
+    else if (type === 'single'  ) {
+        game.variant = SingleStringVariant;
+        game.viewWidthFactor=0.8;  
+    }
     else if (type === 'interval') {
         game.variant = IntervalVariant;
         game.hasFret=false;
@@ -727,7 +739,6 @@ function switchGame(type) {
     else if (type === 'keyboard') {
         game.variant = KeyboardVariant;
         game.viewHeightFactor=0.8;
-        game.viewWidthFactor=0.8;
 
     }
     else if (type === 'extreme') {

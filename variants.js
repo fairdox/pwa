@@ -108,11 +108,27 @@ const ExtremeAccidentalVariant = {
 };
 
 const KeyboardVariant = {
-    label: "KEYBOARD MODE",
+    label: "What's that note?",
     init(engine) {
-        // ... selection logic remains same ...
+        // Pick a target location (using your existing worst-score logic)
+        const candidates = engine.getWorstCombos(20);
+        const selection = candidates.length > 0 ? 
+            candidates[Math.floor(Math.random() * candidates.length)] : 
+            { sIdx: Math.floor(Math.random() * 6), note: NOTES[Math.floor(Math.random() * 12)] };
+
+        this.targetString = selection.sIdx;
+        this.targetNote = selection.note;
+        
+        // Find the physical fret for drawing the marker
+        for (let f = 1; f <= 12; f++) {
+            if (NOTES[(STRINGS[this.targetString] + f) % 12] === this.targetNote) {
+                this.targetFret = f;
+                break;
+            }
+        }
         KeyboardHelper.initButtons(engine, this);
         this.startTime = Date.now();
+
     },
     onTap(engine, s, f, name, x, y) {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);
@@ -130,7 +146,7 @@ const KeyboardVariant = {
     },
     render(engine) {
         const coords = engine.getFretCoordinates(this.targetString, this.targetFret);
-        engine.drawNode(coords.x, coords.y, "X", "gold", 12, 1);
+        engine.drawNode(coords.x, coords.y, "?", "gold", 12, 1);
         KeyboardHelper.draw(engine.ctx, this.buttons);
     }
 };
@@ -140,7 +156,14 @@ const CHORD_FORMULAS = [
     { label: "Minor Chord", formula: ["1", "b3", "5"], semitones: [0, 3, 7] },
     { label: "Dominant 7th", formula: ["1", "3", "5", "b7"], semitones: [0, 4, 7, 10] },
     { label: "Major 7th", formula: ["1", "3", "5", "7"], semitones: [0, 4, 7, 11] },
-    { label: "Sus4 Chord", formula: ["1", "4", "5"], semitones: [0, 5, 7] }
+    { label: "Minor 7th", formula: ["1", "b3", "5", "b7"], semitones: [0, 3, 7, 10] },
+    { label: "Sus4 Chord", formula: ["1", "4", "5"], semitones: [0, 5, 7] },
+    { label: "Sus2 Chord", formula: ["1", "2", "5"], semitones: [0, 2, 7] },
+    { label: "Major 6th", formula: ["1", "3", "5", "6"], semitones: [0, 4, 7, 9] },
+    { label: "Minor 6th", formula: ["1", "b3", "5", "6"], semitones: [0, 3, 7, 9] },
+    { label: "Add9 Chord", formula: ["1", "3", "5", "9"], semitones: [0, 4, 7, 14] }, 
+    { label: "Diminished", formula: ["1", "b3", "b5"], semitones: [0, 3, 6] },
+    { label: "Augmented", formula: ["1", "3", "#5"], semitones: [0, 4, 8] }
 ];
 const IntervalVariant = {
     label: "CHORD BUILDER",
@@ -196,7 +219,7 @@ const IntervalVariant = {
         const ctx = engine.ctx;
         const w = engine.canvas.width;
         const h = engine.canvas.height;
-        const sqSize = 50, gap = 10;
+        const sqSize = 55, gap = 10;
         const totalW = (this.formula.length * sqSize) + ((this.formula.length - 1) * gap);
         const startX = (w - totalW) / 2;
         const centerY = h / 2 - 40;
@@ -218,8 +241,8 @@ const IntervalVariant = {
             KeyboardHelper.roundRect(ctx, x, centerY, sqSize, sqSize, 8, false, true);
 
             // 2. Draw Interval Hint (1, 3, 5, etc.)
-            ctx.fillStyle = "#888";
-            ctx.font = "12px sans-serif";
+            ctx.fillStyle = "#999";
+            ctx.font = "14px sans-serif";
             ctx.fillText(interval, x + sqSize/2, centerY - 10);
 
             // 3. Logic for what note to display in the square
@@ -239,8 +262,8 @@ const IntervalVariant = {
                 ctx.fillText(noteAtSlot, x + sqSize/2, centerY + sqSize/2 + 6);
             } else {
                 // Placeholder/Hint: Show chord members in faint grey
-                ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-                ctx.font = "16px sans-serif";
+                ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+                ctx.font = "18px sans-serif";
                 ctx.fillText(isTarget ? "?" : noteAtSlot, x + sqSize/2, centerY + sqSize/2 + 6);
             }
         });
@@ -322,24 +345,6 @@ const KeyboardHelper = {
     }
 };
 
-const ClassicVariant = {
-    label: "SEQUENCE",
-    init(engine) { this.target = null; this.count = 0; },
-    onTap(engine, s, f, name, x, y) {
-        this.count++;
-        let color = "#4CAF50";
-        if (this.count === 1) {
-            this.target = name; color = "white";
-            this.label = `FIND ALL ${this.target}`;
-        } else {
-            if (name === this.target) engine.score += 10;
-            else { engine.score -= 5; color = "#FF5252"; }
-        }
-        engine.history.push({x, y, name, color});
-        engine.animate(x, y, name, color);
-        if (this.count >= 6) { engine.gameActive = false; engine.reset(); }
-    }
-};
 
 const SectionVariant = {
     sectionSeq: 0,
@@ -357,7 +362,7 @@ const SectionVariant = {
         this.tapTime = Date.now();
         engine.score = 0;
         engine.mistakes=0;
-        this.label = `FIND ${this.targetNote} (FRET ${this.range[0]}-${this.range[1]})`;
+        this.label = `FIND ALL ${this.targetNote} IN FRET ${this.range[0]} TO ${this.range[1]} `;
         //engine.animate(engine.canvas.width / 2,  engine.getSectionCenterY(this.range[0], this.range[1]), 
         //this.targetNote, "rgba(150,150,150,0.5)");
            
@@ -485,11 +490,10 @@ const SingleStringVariant = {
     render(engine,fbHeight) {
         const ctx = engine.ctx;
         const w = engine.canvas.width;
-        const spacingX = (w - engine.marginX * 2) / 5;
-        const xPos = engine.marginX + (this.targetString * spacingX);
+        const xPos = engine.getStringX(this.targetString);
         
         // String Highlight
-        ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+        ctx.fillStyle = "rgba(255, 255, 120, 0.35)";
         ctx.fillRect(xPos - 10, engine.fretPositions[0], 20, engine.fretPositions[12] - engine.fretPositions[0]);
         
         // Target Prompt

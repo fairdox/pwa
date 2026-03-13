@@ -232,8 +232,14 @@ class FretboardEngine {
         const activeW = fullW * (this.viewWidthFactor || 1.0);
         const offsetX = (fullW - activeW) / 2; // The gap to the left of the centered area
         const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
-        return (offsetX + this.marginX + 10 + (stringNum * spacingX)) ;
+        const x = offsetX + this.marginX + 10 + (stringNum * spacingX);
+        if (this.show3D){
+            return x + (this.tiltX * stringNum);
+        }else{
+            return x;
+        }
     }
+
     handleTouch(e) {
         if (this.isAutoPaused) {
  
@@ -447,6 +453,7 @@ class FretboardEngine {
         
             // 3. Draw Strings (applying offsetX)
             const { firstStringX, spacingX } = this.getFretboardLayout();
+    
             for (let i = 0; i < 6; i++) {
                 ctx.strokeStyle = "#888";
                 ctx.lineWidth = 1 + ((5 - i) * 0.5);
@@ -534,22 +541,18 @@ class FretboardEngine {
             this.drawHeatMap(); // Draw the stats heatmap while idle
         }
 
-            //3D effect 
-        if (this.show3D){
-            for (let i = 0; i < 6; i++) {
-                const x = this.marginX + (i * spacingX) + (this.tiltX * i); // Strings shift as you tilt
-                ctx.beginPath();
-                ctx.moveTo(x, this.fretPositions[0]);
-                ctx.lineTo(x, this.fretPositions[12]);
-                ctx.stroke();
-            } 
-        }  
+
         this.drawTapDebug();
         // Top UI
         ctx.fillStyle = "white";
         ctx.font = "bold 14px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(`SCORE: ${Math.round(this.score)}  |  ${this.variant ? this.variant.label : ""}`, fullW / 2, 25);
+        if (this.show3D){
+            //3D effect 
+            ctx.fillText(`3D: ${this.tiltX}  ${this.tiltY}`, 50, 25);
+        } else{  
+            ctx.fillText(`SCORE: ${Math.round(this.score)}  |  ${this.variant ? this.variant.label : ""}`, fullW / 2, 25);
+        }
     }
 
     drawNode(x, y, name, color, size, alpha = 1) {
@@ -712,8 +715,7 @@ async function requestOrientation(show) {
         if (permission === 'granted') {
             game.show3D= true;
         }else{
-            game.show3D= false;
-            game.showDebug= false;
+            game.show3D= true;
         }
     }
 }

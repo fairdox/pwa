@@ -234,7 +234,7 @@ class FretboardEngine {
         const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
         const x = offsetX + this.marginX + 10 + (stringNum * spacingX);
         if (this.show3D){
-            return x + (this.tiltX * stringNum);
+            return x + (this.tiltX * 8);
         }else{
             return x;
         }
@@ -547,12 +547,8 @@ class FretboardEngine {
         ctx.fillStyle = "white";
         ctx.font = "bold 14px sans-serif";
         ctx.textAlign = "center";
-        if (this.show3D){
-            //3D effect 
-            ctx.fillText(`3D: ${+this.tiltX.toFixed(3)}  ${+this.tiltY.toFixed(3)}`, 50, 25);
-        } else{  
-            ctx.fillText(`SCORE: ${Math.round(this.score)}  |  ${this.variant ? this.variant.label : ""}`, fullW / 2, 25);
-        }
+        ctx.fillText(`SCORE: ${Math.round(this.score)}  |  ${this.variant ? this.variant.label : ""}`, fullW / 2, 25);
+        
     }
 
     drawNode(x, y, name, color, size, alpha = 1) {
@@ -711,11 +707,10 @@ async function requestOrientation(show) {
     if (! show) return;
     if (typeof DeviceOrientationEvent.requestPermission === 'function') {
         const permission = await DeviceOrientationEvent.requestPermission();
-        alert(permission);
         if (permission === 'granted') {
             game.show3D= true;
         }else{
-            game.show3D= true;
+            game.show3D= false;
         }
     }
 }

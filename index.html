@@ -549,7 +549,7 @@ class FretboardEngine {
         ctx.textAlign = "center";
         if (this.show3D){
             //3D effect 
-            ctx.fillText(`3D: ${this.tiltX}  ${this.tiltY}`, 50, 25);
+            ctx.fillText(`3D: ${+this.tiltX.toFixed(3)}  ${+this.tiltY.toFixed(3)}`, 50, 25);
         } else{  
             ctx.fillText(`SCORE: ${Math.round(this.score)}  |  ${this.variant ? this.variant.label : ""}`, fullW / 2, 25);
         }

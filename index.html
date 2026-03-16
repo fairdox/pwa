@@ -61,10 +61,11 @@
     <div class="btn-group">
         <button id="optionsBtn" onclick="toggleMenu(true)">Opt.</button>
         <button onclick="switchGame('extreme')" >G1</button>
-        <button onclick="switchGame('keyboard')">G2</button>
-        <button onclick="switchGame('interval')">G3</button>
+        <button onclick="switchGame('interval')">G2</button>
+        <button onclick="switchGame('keyboard')">G3</button>
         <button onclick="switchGame('section')">G4</button>
         <button onclick="switchGame('single')">G5</button>
+        <button onclick="switchGame('chords')">G6</button>
         <button onclick="game.reset()">Reset</button>
     </div>
 </div>
@@ -91,7 +92,7 @@
     <button id="tiltBtn" onclick="enableTilt()">Enable 3D Tilt</button>
 
 </div>
-<script src="variants.js?v=1.5"></script>
+<script src="variants.js?v=1.704"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
@@ -139,6 +140,7 @@ class FretboardEngine {
         this.lastTapX = null;
         this.lastTapY = null;
         this.tapCircleRadius = 0; // For a little "ripple" effect
+
         
         // 3D effect needs https connection
         if (window.DeviceOrientationEvent) {
@@ -215,6 +217,7 @@ class FretboardEngine {
         this.gameActive = true;
         this.isAutoPaused = false;
         this.lastTapTime = Date.now();
+        this.labels =[];
         if (!keepScore) this.score = 0;
         if (this.variant) this.variant.init(this);
     }
@@ -234,7 +237,7 @@ class FretboardEngine {
         const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
         const x = offsetX + this.marginX + 10 + (stringNum * spacingX);
         if (this.show3D){
-            return x + (this.tiltX * 8);
+            return x + (this.tiltX * 2);
         }else{
             return x;
         }
@@ -253,20 +256,36 @@ class FretboardEngine {
         e.preventDefault();
     
         const rect = this.canvas.getBoundingClientRect();
-
         
         const tx = Math.round(e.touches[0].clientX - rect.left) 
         const ty = Math.round(e.touches[0].clientY - rect.top);
         this.lastTapX = tx;
         this.lastTapY = ty;
         this.tapCircleRadius = 20; // Reset the radius for the visual effect
-        
+
+        // process CLEAR 
+        if (this.variant.clearBtn && 
+            tx >= this.variant.clearBtn.x && tx <= this.variant.clearBtn.x + this.variant.clearBtn.w &&
+            ty >= this.variant.clearBtn.y && ty <= this.variant.clearBtn.y + this.variant.clearBtn.h) {
+            
+            this.variant.clear(this);
+            this.tappedKeys = new Set();
+            return; 
+        }
         // 1. Check if the touch is within the Fretboard boundaries
         let fIdx = -1;
-        for (let i = 1; i <= 12; i++) {
-            if (ty >= this.fretPositions[i-1] && ty <= this.fretPositions[i]) { 
-                fIdx = i; 
-                break; 
+        
+        // --- Handle Open String (Fret 0) ---
+        // If the touch is above the first fret wire
+        if (ty < this.fretPositions[0] && ty >= this.fretPositions[0] - 50) {
+            fIdx = 0;
+        } else {
+            // --- Handle Frets 1 to 12 ---
+            for (let i = 1; i <= 12; i++) {
+                if (ty >= this.fretPositions[i - 1] && ty <= this.fretPositions[i]) {
+                    fIdx = i;
+                    break;
+                }
             }
         }
 
@@ -277,15 +296,20 @@ class FretboardEngine {
         if (this.hasFret && sIdx >= 0 && sIdx < 6 && fIdx !== -1) {
             // Standard Fretboard Tap
             const key = `${sIdx}-${fIdx}`;
-            if (this.tappedKeys.has(key)) return;
+            if (this.tappedKeys.has(key)) return;            
             
-            this.tappedKeys.add(key);
             const noteName = NOTES[(STRINGS[sIdx] + fIdx) % 12];
-            const x = this.marginX + 10 + (sIdx * spacingX);
-            const y = (this.fretPositions[fIdx] + this.fretPositions[fIdx-1]) / 2;
+
+            //alert (` ${sIdx} ${sIdx} notename=${noteName}`);
+
+            const x = firstStringX + (sIdx * spacingX);
+            const y = (fIdx==0) ? this.fretPositions[fIdx] - 20 :
+                    (this.fretPositions[fIdx] + this.fretPositions[fIdx-1]) / 2;
 
             //this.variant.label=`> ${x} ${y} `;
-            this.variant.onTap(this, sIdx, fIdx, noteName, x, y);
+            const skipSaveTap = this.variant.onTap(this, sIdx, fIdx, noteName, x, y);
+            if (!this.variant.skipSavingTaps) this.tappedKeys.add(key);
+                
                         
         } else {
             // 3. UI/Keyboard Tap (Outside the frets)
@@ -300,6 +324,70 @@ class FretboardEngine {
 
     animate(x, y, name, color) {
         this.animations.push({ x, y, name, color, startTime: Date.now() });
+    }
+    drawLabels() {
+        if (!this.labels || this.labels.length === 0) return;
+    
+        const now = Date.now();
+        const shrinkDuration = 300; // ms to reach final size
+    
+        for (let i = this.labels.length - 1; i >= 0; i--) {
+            const l = this.labels[i];
+            const age = now - l.startTime;
+    
+            // 1. Remove if expired (if duration isn't -1)
+            if (l.duration !== -1 && age > l.duration) {
+                this.labels.splice(i, 1);
+                continue;
+            }
+    
+            // 2. Calculate Animation Scale
+            // Starts at 2.5x size and drops to 1.0x
+            let scale = 1.0;
+            if (age < shrinkDuration) {
+                const progress = age / shrinkDuration;
+                scale = 2.5 - (1.5 * progress); 
+            }
+    
+            // 3. Draw
+            const currentSize = l.finalSize * scale;
+            this.ctx.fillStyle = l.color;
+            this.ctx.font = `bold ${currentSize}px sans-serif`;
+            this.ctx.textAlign = "center";
+            
+            // Optional: Fade out during the last 500ms
+            if (l.duration !== -1 && l.duration - age < 500) {
+                this.ctx.globalAlpha = (l.duration - age) / 500;
+            }
+    
+            this.ctx.fillText(l.text, l.x, l.y);
+            this.ctx.globalAlpha = 1.0;
+        }
+    }
+    
+    addLabel(text, { color="green", x=this.canvas.width/2, y=18, size=14, duration=4 } = {}) {
+        this.labels = this.labels || [];
+        const threshold = 10;
+    
+        // Logic to find and replace existing labels at x,y
+        const existingIndex = this.labels.findIndex(l => 
+            Math.abs(l.x - x) < threshold && 
+            Math.abs(l.y - y) < threshold
+        );
+    
+        const newLabel = {
+            text, x, y, 
+            finalSize: size, 
+            color, 
+            duration: duration === -1 ? -1 : duration * 1000,
+            startTime: Date.now()
+        };
+    
+        if (existingIndex !== -1) {
+            this.labels[existingIndex] = newLabel;
+        } else {
+            this.labels.push(newLabel);
+        }
     }
 
     getSectionCenterY(startFret, endFret) {
@@ -359,31 +447,39 @@ class FretboardEngine {
         for (let s = 0; s < 6; s++) {
             const x = this.marginX + (s * spacingX);
             
-            // Loop through 12 fret spaces (0 to 11)
-            for (let f = 0; f < 12; f++) {
-                // Calculate the note for this fret space
-                // (f+1 because f=0 is the first fret space, which is 1 semi-tone up from open)
-                const noteName = NOTES[(STRINGS[s] + (f + 1)) % 12];
+            // Change loop to go from 0 to 12 (13 positions total: Open + 12 Frets)
+            for (let f = 0; f <= 12; f++) {
+                // 1. Correct Note Calculation
+                // If f=0, semitones added is 0 (Open String)
+                const noteName = NOTES[(STRINGS[s] + f) % 12];
                 const score = this.stats[`S${s}-${noteName}`] ?? -1;
-    
+            
                 if (score === -1) continue;
-    
+            
                 const normalized = (score - minScore) / range;
                 const hue = normalized * 120; 
-    
-                // Calculate the midpoint between current fret wire and the next one
-                const yStart = this.fretPositions[f];
-                const yEnd = this.fretPositions[f + 1];
-                const yCenter = (yStart + yEnd) / 2;
-    
-                const grad = ctx.createRadialGradient(x+offsetX, yCenter, 0, x+offsetX, yCenter, 22);
+            
+                // 2. Correct Y-Positioning
+                let yCenter;
+                if (f === 0) {
+                    // Position for Open Note: roughly 25px above the first fret wire
+                    yCenter = this.fretPositions[0] - 25;
+                } else {
+                    // Standard Fret Positioning (f-1 because fretPositions[0] is the 1st wire)
+                    const yStart = this.fretPositions[f - 1];
+                    const yEnd = this.fretPositions[f];
+                    yCenter = (yStart + yEnd) / 2;
+                }
+            
+                // 3. Drawing
+                const grad = ctx.createRadialGradient(x + offsetX, yCenter, 0, x + offsetX, yCenter, 22);
                 grad.addColorStop(0, `hsla(${hue}, 100%, 50%, 0.6)`);
                 grad.addColorStop(0.4, `hsla(${hue}, 100%, 50%, 0.3)`);
                 grad.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
-    
+            
                 ctx.fillStyle = grad;
                 ctx.beginPath();
-                ctx.arc(x+offsetX, yCenter, 25, 0, Math.PI * 2);
+                ctx.arc(x + offsetX, yCenter, 25, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
@@ -409,7 +505,6 @@ class FretboardEngine {
         // Clear the entire canvas
         ctx.clearRect(0, 0, fullW, h);
        
-    
         if (this.variant && this.variant.render) {
             this.variant.render(this, fbHeight); 
         }
@@ -466,7 +561,16 @@ class FretboardEngine {
         
             // 4. Draw History & Animations (applying offsetX if they aren't already absolute)
             if (this.showHistory) {
-                this.history.forEach(h => this.drawNode(h.x, h.y, h.name, h.color, 18));
+                this.history.forEach(item => {
+                    let drawY = item.y;
+                    
+                    // If it's an open string (fret 0), ensure it's drawn above the first fret wire
+                    if (item.fIdx === 0) {
+                        drawY = this.fretPositions[0] - 25; 
+                    }
+                
+                    this.drawNode(item.x, drawY, item.name, item.color, 18, item.alpha);
+                });
             }
         
             this.animations = this.animations.filter(a => {
@@ -475,6 +579,8 @@ class FretboardEngine {
                 return p < 1;
             });
         }
+
+        this.drawLabels();
     
         // ... [Perfect Animation remains centered to fullW] ...
         if (this.perfectAnim) {
@@ -544,10 +650,10 @@ class FretboardEngine {
 
         this.drawTapDebug();
         // Top UI
-        ctx.fillStyle = "white";
-        ctx.font = "bold 14px sans-serif";
+        ctx.fillStyle = "green";
+        ctx.font = "bold 15px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(`SCORE: ${Math.round(this.score)}  |  ${this.variant ? this.variant.label : ""}`, fullW / 2, 25);
+        ctx.fillText(`${this.variant ? this.variant.label : ""}`, fullW / 2, 18);
         
     }
 
@@ -571,18 +677,16 @@ class FretboardEngine {
         };
     }
 
-    // Inside FretboardEngine
     processResult(isCorrect, data) {
-        const { visualX, visualY, noteName, sIdx, distance } = data;
+        const { visualX, visualY, noteName, sIdx, distance, stayOnChallenge, color , skipHistory} = data;
         const now = Date.now();
-        const  delay = now - this.variant.startTime;
+        const delay = now - this.variant.startTime;
     
         if (isCorrect) {
-            // Handle Scoring
+            // 1. Calculate Score & Stats
             const speedBonus = Math.max(0, 100 - (delay / 100));
             const final = Math.round(Math.max(0, this.score) + speedBonus);
             
-            // Update Stats
             this.totalFound++;
             this.totalDelay += delay;
             this.avgReactionTime = this.totalDelay / this.totalFound / 1000;
@@ -590,25 +694,37 @@ class FretboardEngine {
             const key = `S${sIdx}-${noteName}`;
             const existing = this.stats[key];
             this.stats[key] = existing === undefined ? final : Math.round((final + existing) / 2);
+    
+            // 2. Effects (Using the specific chord-slot color if provided)
+            const feedbackColor = color || "#4CAF50"; 
+            if (! skipHistory){
+                this.history.push({ x: visualX, y: visualY, name: noteName, color: feedbackColor });
+            }
+            this.animate(visualX, visualY, noteName, feedbackColor);
             
-            // Effects & Storage
-            this.history.push({ x: visualX, y: visualY, name: noteName, color: "#4CAF50" });
-            this.animate(visualX, visualY, noteName, "#4CAF50");
             localStorage.setItem('fretStats', JSON.stringify(this.stats));
-            
-            this.gameActive = false;
-            setTimeout(() => this.reset(true), 1000);
+    
+            // 3. Flow Control: ONLY reset if the chord is actually finished
+            if (!stayOnChallenge) {
+                this.gameActive = false;
+                // Short delay so you can see the final completed chord
+                setTimeout(() => this.reset(true), 1200);
+            } else {
+                // Keep the timer running or refresh it for the next note in the chord
+                // Optional: this.variant.startTime = Date.now(); 
+            }
+    
         } else {
             // Handle Penalties
             const penalty = distance ? distance * 10 : 20; 
             this.score -= penalty;
             this.mistakes++;
-            this.history.push({ x: visualX, y: visualY, name: noteName, color: "#FF5252" });
-            //this.variant.label=` ${visualX}-${visualY} ${noteName} `;
+            if (! skipHistory){
+                this.history.push({ x: visualX, y: visualY, name: noteName, color: "#FF5252" });
+            }
             this.animate(visualX, visualY, noteName, "#FF5252");
         }
     }
-
     getWorstCombos(limit) {
         let unplayed = [], played = [];
         for (let s = 0; s < 6; s++) {
@@ -743,6 +859,11 @@ function switchGame(type) {
         game.hasFret=false;
         game.autoPauseDuration=3600000;
     }
+    else if (type === 'chords') {
+        game.variant = ChordCompletionVariant;
+        game.autoPauseDuration=3600000;
+        game.viewHeightFactor=0.8;
+    }    
     game.calculateFrets() 
     game.reset();
 }

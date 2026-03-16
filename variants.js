@@ -166,7 +166,7 @@ const CHORD_FORMULAS = [
     { label: "Augmented", formula: ["1", "3", "#5"], semitones: [0, 4, 8] }
 ];
 const IntervalVariant = {
-    label: "CHORD BUILDER",
+    label: "What note is missing?",
     init(engine) {
         KeyboardHelper.initButtons(engine, this);
         
@@ -182,7 +182,7 @@ const IntervalVariant = {
         // 2. Pick the 'Question' (anything except the Root)
         this.targetIdx = Math.floor(Math.random() * (this.formula.length - 1)) + 1;
         this.targetNote = NOTES[(this.rootIdx + this.semitones[this.targetIdx]) % 12];
-        this.label =   this.targetNote ;
+        //this.label =   this.targetNote ;
 
         this.userAttempt = null;
         this.startTime = Date.now();
@@ -285,25 +285,46 @@ const KeyboardHelper = {
         variant.buttons = [];
         const w = engine.canvas.width;
         const h = engine.canvas.height;
-        const bw = 48, bh = 48, gap = 8;
         
-        const rows = [
-            ["A#", "C#", "D#", "F#", "G#"], 
-            ["A", "B", "C", "D", "E", "F", "G"]
+        const bw = 48, bh = 48, gap = 8;
+        const totalWhiteKeys = 7;
+        const whiteRowWidth = (totalWhiteKeys * bw) + ((totalWhiteKeys - 1) * gap);
+        
+        // Start X for the white keys (centered)
+        const startXWhite = (w - whiteRowWidth) / 2;
+        const startYWhite = h - 140; // Bottom row
+        const startYBlack = startYWhite - (bh + gap); // Top row
+    
+        // 1. Define White Keys (C to B)
+        const whiteNotes = ["C", "D", "E", "F", "G", "A", "B"];
+        whiteNotes.forEach((note, i) => {
+            variant.buttons.push({
+                x: startXWhite + i * (bw + gap),
+                y: startYWhite,
+                w: bw, h: bh,
+                note: note,
+                color: "#eee"
+            });
+        });
+    
+        // 2. Define Black Keys with specific offsets
+        // Each index represents which white-key gap to sit above
+        // C#(0.5), D#(1.5), F#(3.5), G#(4.5), A#(5.5)
+        const blackKeys = [
+            { note: "C#", slot: 0.5 },
+            { note: "D#", slot: 1.5 },
+            { note: "F#", slot: 3.5 },
+            { note: "G#", slot: 4.5 },
+            { note: "A#", slot: 5.5 }
         ];
-
-        rows.forEach((row, rowIndex) => {
-            const rowWidth = (row.length * bw) + ((row.length - 1) * gap);
-            let startX = (w - rowWidth) / 2;
-            // Positioning rows at the bottom
-            let startY = h - 180 + (rowIndex * (bh + gap));
-
-            row.forEach(note => {
-                variant.buttons.push({ 
-                    x: startX, y: startY, w: bw, h: bh, note: note,
-                    color: rowIndex === 0 ? "#333" : "#eee" 
-                });
-                startX += bw + gap;
+    
+        blackKeys.forEach(bk => {
+            variant.buttons.push({
+                x: startXWhite + bk.slot * (bw + gap),
+                y: startYBlack,
+                w: bw, h: bh,
+                note: bk.note,
+                color: "#333"
             });
         });
     },
@@ -501,4 +522,173 @@ const SingleStringVariant = {
 
     }
 
+};
+
+const ChordCompletionVariant = {
+    label: "",
+    colors: [ "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8B00FF","#8B00FF" ],
+    
+    init(engine) {
+        this.rootIdx = Math.floor(Math.random() * 12);
+        //this.rootIdx = 5;
+        this.rootNote = NOTES[this.rootIdx];
+        
+        const type = CHORD_FORMULAS[Math.floor(Math.random() * CHORD_FORMULAS.length)];
+        //const type = CHORD_FORMULAS[9];
+        
+        this.chordLabel = type.label;
+        this.formula = type.formula;
+        this.semitones = type.semitones;
+        this.semitones=this.semitones.map(s => s % 12); // to normalize somitones that are > 12 
+        
+        this.foundNotes = new Array(this.formula.length).fill(null);
+        this.usedStrings = new Set(); // Track string indices
+        this.historyStack = [];       // For the Undo function
+        
+        this.completed = false;
+        this.startTime = Date.now();
+        this.rootPitch = null;        // To store the first note's absolute "height"
+
+        engine.addLabel("Find the root note", { duration: -1 });
+        this.skipSavingTaps = true; // allow multiple taps on the same note
+    },
+
+    onTap(engine, sIdx, f, noteName, x, y) {
+        if (!noteName || this.completed) return;
+    
+        const stringBasePitches = [40, 45, 50, 55, 59, 64]; 
+        const currentPitch = stringBasePitches[sIdx] + f;
+                
+        // 1. Rule: Don't accept multiple notes on the same string
+        if (this.usedStrings.has(sIdx)) {
+            engine.addLabel("String already used", {color:"red"});
+            return;
+        }
+    
+        const tappedIdx = NOTES.indexOf(noteName);
+        const tappedSemitones = (tappedIdx - this.rootIdx + 12) % 12;
+        const slotIdx = this.semitones.indexOf(tappedSemitones);
+    
+        // Is this note part of our chord?
+        if (slotIdx !== -1) {
+            
+            // 2. Sophisticated Rule: Root first, but allow lower roots
+            if (slotIdx === 0) {
+                // If this is the FIRST root found, set the reference floor
+                if (this.rootPitch === null) {
+                    this.rootPitch = currentPitch;
+                } else if (currentPitch < this.rootPitch) {
+                    // If this root is lower than our previous root, update the floor
+                    this.rootPitch = currentPitch;
+                    engine.addLabel("New lower root set!", {color: "cyan", size: 12});
+                }
+            } else {
+                // Not a root note: Must have a root established and cannot be lower
+                if (this.rootPitch === null) {
+                    engine.addLabel("Must find a root first", {color:"red"});
+                    return; 
+                } else if (currentPitch < this.rootPitch) {
+                    engine.addLabel("Note is lower than root", {color:"red"});
+                    return;
+                }
+            }
+    
+            // SUCCESS Logic
+            // Mark as found in the progress squares if not already filled
+            if (this.foundNotes[slotIdx] === null) {
+                this.foundNotes[slotIdx] = noteName;
+            } else {
+                engine.addLabel(`Doubling the ${this.formula[slotIdx]}`, {color: this.colors[slotIdx]});
+            }
+    
+            this.usedStrings.add(sIdx);
+            this.historyStack.push({ slotIdx, sIdx });
+    
+            const isChordComplete = this.foundNotes.every(n => n !== null);
+            
+            engine.addLabel(isChordComplete ? "Chord Complete!" : "Keep building...", { duration: -1 });
+    
+            engine.processResult(true, {
+                visualX: x, visualY: y, noteName: noteName, sIdx: sIdx,
+                color: this.colors[slotIdx],
+                stayOnChallenge: true 
+            });
+    
+            if (isChordComplete) {
+                if (this.usedStrings.size==6) this.completed = true;
+                engine.addLabel("Tap CLEAR for another chord", {color:"green", size:16, duration:-1});
+            }
+        } else {
+            // WRONG NOTE
+            engine.processResult(false, {
+                visualX: x, visualY: y, noteName: noteName, sIdx: sIdx,
+                color: "red", stayOnChallenge: true, skipHistory: true
+            });
+        }
+    },
+
+    clear(engine) {
+        // 1. Reset Variant tracking
+        this.foundNotes.fill(null);
+        this.usedStrings.clear();
+        this.rootPitch = null;
+        this.completed = false;
+    
+        // 2. Reset Engine visual tracking
+        engine.tappedKeys.clear();
+        engine.history = []; // Clears the colored dots on the fretboard
+    
+        // 3. Optional: Reset start time if you want to reset the speed bonus
+        this.startTime = Date.now();
+    },
+
+    render(engine) {
+        const ctx = engine.ctx;
+        const w = engine.canvas.width;
+        const h = engine.canvas.height;
+
+
+        // --- Draw Clear Button ---
+        this.clearBtn = { x: w-80, y: h-160, w: 70, h: 40 }; // Store for hit detection
+        ctx.fillStyle = "#FF5252"; // Red to indicate a "Reset"
+        KeyboardHelper.roundRect(ctx, this.clearBtn.x, this.clearBtn.y, this.clearBtn.w, this.clearBtn.h, 5, true, false);
+        
+        ctx.fillStyle = "white";
+        ctx.font = "bold 14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("CLEAR", this.clearBtn.x + 40, this.clearBtn.y + 20);
+        // 1. Draw Chord Header
+        ctx.textAlign = "center";
+        ctx.fillStyle = "white";
+        ctx.font = "bold 24px sans-serif";
+        ctx.fillText(`${this.rootNote} ${this.chordLabel}`, w / 2, h - 150);
+
+        // 2. Draw Progress Squares
+        const sqSize = 50, gap = 10;
+        const totalW = (this.formula.length * sqSize) + ((this.formula.length - 1) * gap);
+        let startX = (w - totalW) / 2;
+        const sqY = h - 120;
+
+        this.formula.forEach((interval, i) => {
+            const x = startX + i * (sqSize + gap);
+            const foundNote = this.foundNotes[i];
+
+            // Square Border
+            ctx.strokeStyle = "#555";
+            ctx.lineWidth = 2;
+            KeyboardHelper.roundRect(ctx, x, sqY, sqSize, sqSize, 8, false, true);
+
+            // Interval Label (Hint)
+            ctx.fillStyle = "#aaa";
+            ctx.font = "12px sans-serif";
+            ctx.fillText(interval, x + sqSize/2, sqY - 10);
+
+            // If note found, draw it with its ROYGBIV color
+            if (foundNote) {
+                ctx.fillStyle = this.colors[i];
+                ctx.font = "bold 20px sans-serif";
+                ctx.fillText(foundNote, x + sqSize/2, sqY + sqSize/2 + 7);
+            }
+        });
+    }
 };

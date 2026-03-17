@@ -616,7 +616,7 @@ const ChordCompletionVariant = {
     
             if (isChordComplete) {
                 if (this.usedStrings.size==6) this.completed = true;
-                engine.addLabel("Tap CLEAR for another chord", {color:"green", size:16, duration:-1});
+                engine.addLabel("Tap RESET for another chord", {color:"green", size:16, duration:-1});
             }
         } else {
             // WRONG NOTE

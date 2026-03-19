@@ -33,14 +33,6 @@
             cursor: pointer;
         }
 
-        #gameCanvas {
-            width: 100vw;
-            height: 177.78vw; /* This forces a 9:16 Portrait aspect ratio */
-            max-height: 100vh;
-            object-fit: contain; /* Ensures the whole board stays visible */
-            touch-action: none;  /* Prevents the browser from scrolling while you play */
-        } 
-        
         #optionsMenu {
             display: none;
             position: fixed;
@@ -99,7 +91,7 @@
 
 
 </div>
-<script src="variants.js?v=1.708"></script>
+<script src="variants.js?v=1.709"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
@@ -158,20 +150,8 @@ class FretboardEngine {
                 this.tiltY = e.beta / 10;
             });
         }
-                
-        // 1. Determine the fixed orientation once
-        // We want Width < Height
-        const screenW = window.innerWidth;
-        const screenH = window.innerHeight;
-    
-        // Force Portrait: ensure width is the smaller dimension
-        this.canvas.width = Math.min(screenW, screenH);
-        this.canvas.height = Math.max(screenW, screenH);
-    
-        // 2. The "Refusal": Stop listening to orientation changes
-        window.removeEventListener('resize', this.handleResize);
-        window.removeEventListener('orientationchange', this.handleOrientation);
-        //window.addEventListener('resize', () => this.resize());
+
+        window.addEventListener('resize', () => this.resize());
         this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e), {passive: false});
         this.resize();
     }

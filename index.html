@@ -8,7 +8,7 @@
     <style>
         body { margin: 0; background: black; overflow: hidden; touch-action: none; font-family: sans-serif; color: white; }
         canvas { display: block; }
-        
+       
         .ui-layer { 
             position: absolute; 
             bottom: 15px; 
@@ -33,6 +33,14 @@
             cursor: pointer;
         }
 
+        #gameCanvas {
+            width: 100vw;
+            height: 177.78vw; /* This forces a 9:16 Portrait aspect ratio */
+            max-height: 100vh;
+            object-fit: contain; /* Ensures the whole board stays visible */
+            touch-action: none;  /* Prevents the browser from scrolling while you play */
+        } 
+        
         #optionsMenu {
             display: none;
             position: fixed;
@@ -89,7 +97,6 @@
     <br><br>
     <button onclick="clearFretStats()" style="background: #622; border-color: #844; font-size: 0.8em;">Clear All Progress</button>
 
-    <button id="tiltBtn" onclick="enableTilt()">Enable 3D Tilt</button>
 
 </div>
 <script src="variants.js?v=1.707"></script>
@@ -140,6 +147,7 @@ class FretboardEngine {
         this.lastTapX = null;
         this.lastTapY = null;
         this.tapCircleRadius = 0; // For a little "ripple" effect
+        this.statKey= null; // begining of statistics key should be different for each game
 
         
         // 3D effect needs https connection
@@ -151,7 +159,19 @@ class FretboardEngine {
             });
         }
                 
-        window.addEventListener('resize', () => this.resize());
+        // 1. Determine the fixed orientation once
+        // We want Width < Height
+        const screenW = window.innerWidth;
+        const screenH = window.innerHeight;
+    
+        // Force Portrait: ensure width is the smaller dimension
+        this.canvas.width = Math.min(screenW, screenH);
+        this.canvas.height = Math.max(screenW, screenH);
+    
+        // 2. The "Refusal": Stop listening to orientation changes
+        window.removeEventListener('resize', this.handleResize);
+        window.removeEventListener('orientationchange', this.handleOrientation);
+        //window.addEventListener('resize', () => this.resize());
         this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e), {passive: false});
         this.resize();
     }
@@ -219,7 +239,10 @@ class FretboardEngine {
         this.lastTapTime = Date.now();
         this.labels =[];
         if (!keepScore) this.score = 0;
-        if (this.variant) this.variant.init(this);
+        if (this.variant) {
+            this.variant.init(this);
+        }
+        this.statKey = this.variant.statKey || "S";
     }
     getFretboardLayout() {
         const fullW = this.canvas.width;
@@ -327,45 +350,73 @@ class FretboardEngine {
     }
     drawLabels() {
         if (!this.labels || this.labels.length === 0) return;
-    
         const now = Date.now();
-        const shrinkDuration = 300; // ms to reach final size
     
         for (let i = this.labels.length - 1; i >= 0; i--) {
             const l = this.labels[i];
+            const dt = (now - l.lastUpdate) / 1000; // Delta time in seconds
             const age = now - l.startTime;
     
-            // 1. Remove if expired (if duration isn't -1)
             if (l.duration !== -1 && age > l.duration) {
                 this.labels.splice(i, 1);
                 continue;
             }
     
-            // 2. Calculate Animation Scale
-            // Starts at 2.5x size and drops to 1.0x
-            let scale = 1.0;
-            if (age < shrinkDuration) {
-                const progress = age / shrinkDuration;
-                scale = 2.5 - (1.5 * progress); 
+            // 1. Update Physics (Velocity & Position)
+            if (l.accel !== 0) {
+                // Apply acceleration to the magnitude of velocity
+                const currentSpeed = Math.sqrt(l.vx * l.vx + l.vy * l.vy) + (l.accel * dt);
+                l.vx = Math.cos(l.dirRad) * currentSpeed;
+                l.vy = Math.sin(l.dirRad) * currentSpeed;
             }
-    
-            // 3. Draw
-            const currentSize = l.finalSize * scale;
-            this.ctx.fillStyle = l.color;
-            this.ctx.font = `bold ${currentSize}px sans-serif`;
-            this.ctx.textAlign = "center";
             
-            // Optional: Fade out during the last 500ms
+            l.x += l.vx * dt;
+            l.y += l.vy * dt;
+    
+            // 2. Update Rotation
+            l.vRot += l.aRot * dt;
+            l.angle += l.vRot * dt;
+            
+            l.lastUpdate = now;
+    
+            // 3. Render with Rotation
+            this.ctx.save();
+            this.ctx.translate(l.x, l.y);
+            this.ctx.rotate(l.angle * (Math.PI / 180));
+            
+            // Initial "pop" scale animation (from previous step)
+            let scale = l.size;
+            if (age < 500) scale = l.size*2.0 - ( age * l.stepSize) ;
+    
+            this.ctx.fillStyle = l.color;
+            this.ctx.font = `bold ${scale}px sans-serif`;
+            this.ctx.textAlign = "center";
+            this.ctx.textBaseline = "middle";
+            
+            // Fade out
             if (l.duration !== -1 && l.duration - age < 500) {
                 this.ctx.globalAlpha = (l.duration - age) / 500;
             }
     
-            this.ctx.fillText(l.text, l.x, l.y);
-            this.ctx.globalAlpha = 1.0;
+            this.ctx.fillText(l.text, 0, 0);
+            this.ctx.restore();
         }
     }
+        
+    addLabel(text, options = {}) {
+        const { 
+            x = this.canvas.width / 2, 
+            y = 18, 
+            color = "green", 
+            size = 24, 
+            duration = 2,
+            direction = 0,         // Degrees (0 up, 90 right, 180 down)
+            speed = 0,             // px/sec
+            acceleration = 0,      // px/sec^2
+            rotationSpeed = 0,     // deg/sec
+            rotationAccel = 0      // deg/sec^2
+        } = options;
     
-    addLabel(text, { color="green", x=this.canvas.width/2, y=18, size=14, duration=4 } = {}) {
         this.labels = this.labels || [];
         const threshold = 10;
     
@@ -373,16 +424,28 @@ class FretboardEngine {
         const existingIndex = this.labels.findIndex(l => 
             Math.abs(l.x - x) < threshold && 
             Math.abs(l.y - y) < threshold
-        );
-    
-        const newLabel = {
-            text, x, y, 
-            finalSize: size, 
-            color, 
+        );       
+        // Convert direction (degrees) to a movement vector
+        const rad = (direction - 90) * (Math.PI / 180); // Adjusting so 0 is Up
+        const stepSize = (size*2.0- size)/500.0;
+
+        const newLabel =({
+            text, color, x, y, 
+            size,
+            startTime: Date.now(),
+            lastUpdate: Date.now(),
             duration: duration === -1 ? -1 : duration * 1000,
-            startTime: Date.now()
-        };
-    
+            // Physics state
+            vx: Math.cos(rad) * speed,
+            vy: Math.sin(rad) * speed,
+            accel: acceleration,
+            angle: 0,
+            vRot: rotationSpeed,
+            aRot: rotationAccel,
+            dirRad: rad,
+            stepSize: stepSize // size reduction or augmentation step per ms
+        });
+
         if (existingIndex !== -1) {
             this.labels[existingIndex] = newLabel;
         } else {
@@ -427,6 +490,8 @@ class FretboardEngine {
     }
     
     drawHeatMap() {
+        if (!this.showDebug || !this.isAutoPaused) return;
+        if (this.variant?.skipHeatMap) return;
         const ctx = this.ctx;
         const fullW = this.canvas.width;
         const activeW = fullW * (this.viewWidthFactor || 1.0);
@@ -452,7 +517,7 @@ class FretboardEngine {
                 // 1. Correct Note Calculation
                 // If f=0, semitones added is 0 (Open String)
                 const noteName = NOTES[(STRINGS[s] + f) % 12];
-                const score = this.stats[`S${s}-${noteName}`] ?? -1;
+                const score = this.stats[`${this.statKey }${s}-${noteName}`] ?? -1;
             
                 if (score === -1) continue;
             
@@ -512,8 +577,10 @@ class FretboardEngine {
         if (this.showDebug && this.isAutoPaused) {
             this.renderStats(true);
         } else {
-             this.renderStats(false);
+            this.renderStats(false);
         }
+
+        const { firstStringX, spacingX } = this.getFretboardLayout();
 
         if (this.hasFret){
     
@@ -547,7 +614,6 @@ class FretboardEngine {
             });
         
             // 3. Draw Strings (applying offsetX)
-            const { firstStringX, spacingX } = this.getFretboardLayout();
     
             for (let i = 0; i < 6; i++) {
                 ctx.strokeStyle = "#888";
@@ -643,11 +709,7 @@ class FretboardEngine {
             ctx.fillText("Tap anywhere to resume", fullW / 2, h / 2 + 40);
         }
         
-        if (this.showDebug && this.isAutoPaused) {
-            this.drawHeatMap(); // Draw the stats heatmap while idle
-        }
-
-
+        this.drawHeatMap(); // Draw the stats heatmap while idle
         this.drawTapDebug();
         // Top UI
         ctx.fillStyle = "green";
@@ -677,11 +739,21 @@ class FretboardEngine {
         };
     }
 
+    getCustomRandom(a,b) {
+        let num = Math.random() * (b - a) + a;
+        return num ;
+       }
+
     processResult(isCorrect, data) {
         const { visualX, visualY, noteName, sIdx, distance, stayOnChallenge, color , skipHistory} = data;
         const now = Date.now();
         const delay = now - this.variant.startTime;
-    
+        const rspeed = (Math.random() - 0.5) * 30;
+        const tspeed = 180;
+        const taccel = 60 + (Math.random() - 0.5) * 50;
+        const up = this.getCustomRandom(360-25,360-45);
+        const down = this.getCustomRandom(180+25,180+40);
+        
         if (isCorrect) {
             // 1. Calculate Score & Stats
             const speedBonus = Math.max(0, 100 - (delay / 100));
@@ -690,10 +762,11 @@ class FretboardEngine {
             this.totalFound++;
             this.totalDelay += delay;
             this.avgReactionTime = this.totalDelay / this.totalFound / 1000;
-            
-            const key = `S${sIdx}-${noteName}`;
-            const existing = this.stats[key];
-            this.stats[key] = existing === undefined ? final : Math.round((final + existing) / 2);
+            if (!stayOnChallenge){ // challenge is over record stats
+                const key = `${this.statKey}${sIdx}-${noteName}`;
+                const existing = this.stats[key];
+                this.stats[key] = existing === undefined ? final : Math.round((final + existing) / 2);
+            }
     
             // 2. Effects (Using the specific chord-slot color if provided)
             const feedbackColor = color || "#4CAF50"; 
@@ -710,10 +783,14 @@ class FretboardEngine {
                 // Short delay so you can see the final completed chord
                 setTimeout(() => this.reset(true), 1200);
             } else {
-                // Keep the timer running or refresh it for the next note in the chord
-                // Optional: this.variant.startTime = Date.now(); 
+                // refresh timer for the next note in the challenge
+                this.variant.startTime = Date.now(); 
             }
-    
+            
+            this.addLabel(`${final}`, { duration: 2 , color:"green", x: visualX+20, y: visualY-10, 
+                                  rotationSpeed:rspeed, speed:tspeed, acceleration : taccel,
+                                  direction: up, duration :1, size:30                               
+                                  });
         } else {
             // Handle Penalties
             const penalty = distance ? distance * 10 : 20; 
@@ -723,19 +800,44 @@ class FretboardEngine {
                 this.history.push({ x: visualX, y: visualY, name: noteName, color: "#FF5252" });
             }
             this.animate(visualX, visualY, noteName, "#FF5252");
+            this.addLabel(`-${penalty}`, { duration: 2 , color:"red", x: visualX-20, y: visualY-10, 
+                                  rotationSpeed:rspeed, speed: tspeed, acceleration : taccel, 
+                                  direction: down, duration:1, size:30
+                                 });
         }
     }
-    getWorstCombos(limit) {
+    getWorstCombos(limit, exclude = null) {
         let unplayed = [], played = [];
-        for (let s = 0; s < 6; s++) {
+        
+        // Helper to check if this specific note should be skipped
+        const isExcluded = (n) => exclude !== null && n === exclude;
+    
+        if (this.variant?.noStringStat) {
             NOTES.forEach(n => {
-                const score = this.stats[`S${s}-${n}`] ?? -1;
-                const item = { sIdx: s, note: n, score: score };
+                if (isExcluded(n)) return; // Skip the excluded note   
+                const score = this.stats[`${this.statKey}-${n}`] ?? -1;
+                const item = { note: n, score: score };                
                 if (score === -1) unplayed.push(item);
                 else played.push(item);
             });
+        } else {
+            for (let s = 0; s < 6; s++) {
+                NOTES.forEach(n => {
+                    if (isExcluded(n)) return; // Skip the excluded note
+                    const score = this.stats[`${this.statKey}${s}-${n}`] ?? -1;
+                    const item = { sIdx: s, note: n, score: score };
+                    if (score === -1) unplayed.push(item);
+                    else played.push(item);
+                });
+            }
         }
-        if (unplayed.length > 0) return unplayed.sort(() => Math.random() - 0.5).slice(0, limit);
+    
+        // 1. If we have notes never played before, prioritize them (randomized)
+        if (unplayed.length > 0) {
+            return unplayed.sort(() => Math.random() - 0.5).slice(0, limit);
+        }
+    
+        // 2. Otherwise, return the notes with the lowest scores (worst performance)
         return played.sort((a, b) => a.score - b.score).slice(0, limit);
     }
     
@@ -744,23 +846,27 @@ class FretboardEngine {
         let sum = 0, count = 0;
         const ctx = this.ctx;
         const w = this.canvas.width;
-        for (let s = 0; s < 6; s++) {
+        if (this.variant?.noStringStat){
             NOTES.forEach(n => {
-                const val = this.stats[`S${s}-${n}`] ?? -1;
-                all.push({ label: `S${s+1}-${n}`, score: val });
+                const val = this.stats[`${this.statKey }-${n}`] ?? -1;
+                all.push({ label: `${this.statKey }-${n}`, score: val });
                 if(val !== -1) { sum += val; count++; }
             });
+        }else{
+            for (let s = 0; s < 6; s++) {
+                NOTES.forEach(n => {
+                    const val = this.stats[`${this.statKey }${s}-${n}`] ?? -1;
+                    all.push({ label: `${this.statKey }${s+1}-${n}`, score: val });
+                    if(val !== -1) { sum += val; count++; }
+                });
+            }
         }
         
         this.avg = count > 0 ? Math.round(sum / count) : 0;
         const sorted = all.sort((a, b) => a.score - b.score);
-        const worst10 = sorted.slice(0, 10);
-        const best10 = sorted.filter(x => x.score !== -1).reverse().slice(0, 10);
-        if (this.maxAvg==null) this.maxAvg = this.avg; 
-        if (this.avg > this.maxAvg) {
-            this.maxAvg= this.avg;
-            this.triggerPerfect(`HIGH: ${this.avg}`);
-        }
+        const half = Math.min(10,sorted.length/2);
+        const worst10 = sorted.slice(0, half);
+        const best10 = sorted.filter(x => x.score !== -1).reverse().slice(0, half);
         
         ctx.textAlign = "right";
         ctx.font = "bold 14px monospace";
@@ -772,9 +878,8 @@ class FretboardEngine {
         ctx.textAlign = "right";
         ctx.font = "bold 14px monospace";
         ctx.fillStyle = "#FFD700";
-        ctx.fillText(`AVG PROGRESS: ${this.avg}`, w - 10, y); y += lineHeight;
-        ctx.fillText(`HIGH AVG    : ${this.maxAvg}`, w - 10, y);y += lineHeight;
-        ctx.fillText(`REACTION AVG: ${(this.avgReactionTime || 0).toFixed(1)}`, w - 10, y);
+        ctx.fillText(`Average     : ${this.avg}`, w - 10, y); y += lineHeight;
+        ctx.fillText(`React. time : ${(this.avgReactionTime || 0).toFixed(1)}`, w - 10, y);
 
         if (! full) return;
         
@@ -783,7 +888,7 @@ class FretboardEngine {
         // Worst 10 List
         ctx.font = "13px monospace";
         ctx.fillStyle = "#FF5252";
-        ctx.fillText("--- WORST 10 ---", w - 10, y); y += lineHeight;
+        ctx.fillText("--- WORST  ---", w - 10, y); y += lineHeight;
         
         worst10.forEach((obj) => {
             ctx.fillStyle = obj.score === -1 ? "#666" : "#FF5252";
@@ -794,7 +899,7 @@ class FretboardEngine {
         
         // Best 10 List
         ctx.fillStyle = "#4CAF50";
-        ctx.fillText("--- BEST 10 ---", w - 10, y); y += lineHeight;
+        ctx.fillText("--- BEST  ---", w - 10, y); y += lineHeight;
         best10.forEach((obj) => {
                     ctx.fillStyle = "#4CAF50";
                     ctx.fillText(`${obj.label}: ${obj.score}`, w - 10, y);y += lineHeight;

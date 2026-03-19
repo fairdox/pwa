@@ -1,5 +1,6 @@
 const ExtremeAccidentalVariant = {
     label: "EXTREME DRILL",
+    statKey: "Ex",
     init(engine) {
         KeyboardHelper.initButtons(engine, this);
 
@@ -27,6 +28,7 @@ const ExtremeAccidentalVariant = {
 
         this.userAttempt = null;
         this.startTime = Date.now();
+        this.skipHeatMap=true;
     },
 
     onTap(engine, s, f, name, x, y) {
@@ -109,9 +111,10 @@ const ExtremeAccidentalVariant = {
 
 const KeyboardVariant = {
     label: "What's that note?",
+    statKey: "K",
     init(engine) {
         // Pick a target location (using your existing worst-score logic)
-        const candidates = engine.getWorstCombos(20);
+        const candidates = engine.getWorstCombos(10);
         const selection = candidates.length > 0 ? 
             candidates[Math.floor(Math.random() * candidates.length)] : 
             { sIdx: Math.floor(Math.random() * 6), note: NOTES[Math.floor(Math.random() * 12)] };
@@ -167,6 +170,7 @@ const CHORD_FORMULAS = [
 ];
 const IntervalVariant = {
     label: "What note is missing?",
+    statKey: "W1",
     init(engine) {
         KeyboardHelper.initButtons(engine, this);
         
@@ -370,61 +374,59 @@ const KeyboardHelper = {
 const SectionVariant = {
     sectionSeq: 0,
     range: null,
+    statKey: "Se",
     init(engine) {
         const sections = [[1,12],[1, 4], [5, 8], [9, 12],[1,7],[5,12]];
         if (!this.range) {
             this.range = sections[this.sectionSeq];
             this.sectionSeq = (this.sectionSeq + 1) % sections.length;
         }
-        this.targetNote = this.getWeightedRandomNote(engine, this.targetNote);
+        const candidates = engine.getWorstCombos(5,this.targetNote);
+        const selection = candidates[Math.floor(Math.random() * candidates.length)]; 
+        this.targetNote = selection.note;
         this.foundCount = 0;
         this.needed = this.calculateNeeded();
         this.startTime = Date.now();
         this.tapTime = Date.now();
-        engine.score = 0;
+        this.noStringStat = true;
+        this.cumulScore=0;
+        engine.score = 100;
         engine.mistakes=0;
-        this.label = `FIND ALL ${this.targetNote} IN FRET ${this.range[0]} TO ${this.range[1]} `;
+        this.label = `FIND ALL ${this.needed} \"${this.targetNote}\" IN FRET ${this.range[0]} TO ${this.range[1]} `;
         //engine.animate(engine.canvas.width / 2,  engine.getSectionCenterY(this.range[0], this.range[1]), 
         //this.targetNote, "rgba(150,150,150,0.5)");
            
     },
 
-    getWeightedRandomNote(engine, exclude) {
-        const rangeKey = `${this.range[0]}-${this.range[1]}`;
-        let notes = NOTES.filter(n => n !== exclude).map(n => ({
-            name: n, score: engine.stats[`${rangeKey}-${n}`] ?? -1
-        })).sort((a, b) => a.score - b.score);
-        return notes.slice(0, 5)[Math.floor(Math.random() * Math.min(5, notes.length))].name;
-    },
-
     onTap(engine, s, f, name, x, y) {
         if (f < this.range[0] || f > this.range[1]) return;
-        this.tapTime = Date.now();
-        let color = (name === this.targetNote) ? "#4CAF50" : "#FF5252";
+        const coords = engine.getFretCoordinates(s, f);
+
+        let stay = true;
         if (name === this.targetNote) {
             this.foundCount++;
-            engine.score += (100 / this.needed);
-        } else {
-            engine.score -= 10;
-            engine.mistakes++; 
-        }
-        
-        engine.history.push({ x, y, name, color });
-        engine.animate(x, y, name, color);
-
-        if (this.foundCount >= this.needed) {
-            engine.gameActive = false;
-            
-            if (engine.mistakes === 0) {
-               engine.triggerPerfect("PERFECT!");
+            if (this.foundCount >= this.needed){
+                stay=false;
+                if (engine.mistakes === 0) {
+                    engine.triggerPerfect("PERFECT! +25");
+                    engine.score += 25;
+                }
                 
             }
-            const bonus = Math.max(0, 100 - ((Date.now() - this.startTime)/200));
-            const final = Math.round(engine.score + bonus);
-            const key = `${this.range[0]}-${this.range[1]}-${this.targetNote}`;
-            engine.stats[key] = engine.stats[key] === undefined ? final : Math.round((final + engine.stats[key])/2);
-            localStorage.setItem('fretStats', JSON.stringify(engine.stats));
-            setTimeout(() => engine.reset(true), 1000);
+        }
+        
+        engine.processResult(name === this.targetNote, {
+            visualX: coords.x, 
+            visualY: coords.y, 
+            sIdx: "", // string index not important in this game stats 
+            noteName: name,
+            distance: Math.abs(f - this.targetFret),
+            stayOnChallenge: stay 
+        });
+
+        if (name === this.targetNote){
+            this.cumulScore += engine.score;
+            engine.score = Math.round(this.cumulScore/ this.needed);
         }
     },
 
@@ -440,17 +442,6 @@ const SectionVariant = {
                         "rgba(129, 79, 189, 0.3)",
                         92,
                         0.3);
-        
-        if (engine.showDebug) {
-            ctx.textAlign = "right"; ctx.font = "14px monospace";
-            const sorted = NOTES.map(n => ({
-                name: n, score: engine.stats[`${rangeKey}-${n}`] ?? -1
-            })).sort((a, b) => a.score - b.score);
-            sorted.forEach((obj, i) => {
-                ctx.fillStyle = (obj.name === this.targetNote) ? "#4CAF50" : "#666";
-                ctx.fillText(`${obj.name}: ${obj.score === -1 ? "--" : obj.score}`, w - 10, 60 + (i * 18));
-            });
-        }
     },
 
     calculateNeeded() {
@@ -468,6 +459,7 @@ const SectionVariant = {
 
 const SingleStringVariant = {
     label: "SINGLE STRING",
+    statKey: "St",
     init(engine) {
         const candidates = engine.getWorstCombos(10);
         const selection = candidates[Math.floor(Math.random() * candidates.length)]; 
@@ -526,6 +518,7 @@ const SingleStringVariant = {
 
 const ChordCompletionVariant = {
     label: "",
+    statKey: "Ch",
     colors: [ "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8B00FF","#8B00FF" ],
     
     init(engine) {
@@ -551,6 +544,8 @@ const ChordCompletionVariant = {
 
         engine.addLabel("Find the root note", { duration: -1 });
         this.skipSavingTaps = true; // allow multiple taps on the same note
+        this.skipHeatMap=true;
+        engine.score = 0;
     },
 
     onTap(engine, sIdx, f, noteName, x, y) {
@@ -607,7 +602,7 @@ const ChordCompletionVariant = {
             const isChordComplete = this.foundNotes.every(n => n !== null);
             
             engine.addLabel(isChordComplete ? "Chord Complete!" : "Keep building...", { duration: -1 });
-    
+            
             engine.processResult(true, {
                 visualX: x, visualY: y, noteName: noteName, sIdx: sIdx,
                 color: this.colors[slotIdx],

@@ -91,7 +91,7 @@
 
 
 </div>
-<script src="variants.js?v=1.801"></script>
+<script src="variants.js?v=1.802"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
@@ -784,8 +784,8 @@ class FretboardEngine {
                                   });
         } else {
             // Handle Penalties
-            const penalty = distance ? distance * 20 : 40; 
-            this.score -= penalty;
+            const penalty = (distance ? distance * 20 : 40)+ (this.mistakes*10); 
+            this.score -= penalty ;
             this.mistakes++;
             if (! skipHistory){
                 this.history.push({ x: visualX, y: visualY, name: noteName, color: "#FF5252" });

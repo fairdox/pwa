@@ -131,6 +131,8 @@ const KeyboardVariant = {
         }
         KeyboardHelper.initButtons(engine, this);
         this.startTime = Date.now();
+        engine.score=100;
+        engine.mistakes=0;
 
     },
     onTap(engine, s, f, name, x, y) {

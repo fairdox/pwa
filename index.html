@@ -91,7 +91,7 @@
 
 
 </div>
-<script src="variants.js?v=1.709"></script>
+<script src="variants.js?v=1.800"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
@@ -231,7 +231,7 @@ class FretboardEngine {
         const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
         const firstStringX = offsetX + this.marginX + 10;
     
-        return { firstStringX, spacingX };
+        return { firstStringX, spacingX, offsetX };
     }
     getStringX(stringNum){
         const fullW = this.canvas.width;
@@ -541,7 +541,6 @@ class FretboardEngine {
         // 1. Calculate dimensions and Horizontal Centering
         const fullW = this.canvas.width;
         const activeW = fullW * (this.viewWidthFactor || 1.0);
-        const offsetX = (fullW - activeW) / 2; // The gap to the left of the centered area
         const h = this.canvas.height;
         
         const factor = this.viewHeightFactor || 1.0;
@@ -560,7 +559,7 @@ class FretboardEngine {
             this.renderStats(false);
         }
 
-        const { firstStringX, spacingX } = this.getFretboardLayout();
+        const { firstStringX, spacingX , offsetX} = this.getFretboardLayout();
 
         if (this.hasFret){
     
@@ -594,17 +593,29 @@ class FretboardEngine {
             });
         
             // 3. Draw Strings (applying offsetX)
-    
+            let x = 0;
             for (let i = 0; i < 6; i++) {
-                ctx.strokeStyle = "#888";
-                ctx.lineWidth = 1 + ((5 - i) * 0.5);
-                let x = this.getStringX(i);
+                ctx.strokeStyle = "#a87f32";
+                ctx.lineWidth = 1 + ((7 - i) * 0.5);
+                x = this.getStringX(i);
                 ctx.beginPath(); 
-                ctx.moveTo(x, this.fretPositions[0]); 
-                ctx.lineTo(x, this.fretPositions[12]); 
+                ctx.moveTo(x, this.fretPositions[0]-10); 
+                ctx.lineTo(x, this.fretPositions[12]+10); 
                 ctx.stroke();
             }
-        
+
+            ctx.strokeStyle = "#333";
+            ctx.lineWidth = 1 ;
+            x = offsetX+this.marginX;
+            ctx.beginPath(); 
+            ctx.moveTo(x, this.fretPositions[0]); 
+            ctx.lineTo(x, this.fretPositions[12]+10); 
+            ctx.stroke();
+            x = offsetX + activeW - this.marginX;
+            ctx.beginPath(); 
+            ctx.moveTo(x, this.fretPositions[0]); 
+            ctx.lineTo(x, this.fretPositions[12]+10); 
+            ctx.stroke();        
             // 4. Draw History & Animations (applying offsetX if they aren't already absolute)
             if (this.showHistory) {
                 this.history.forEach(item => {

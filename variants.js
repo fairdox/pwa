@@ -296,7 +296,7 @@ const KeyboardHelper = {
         
         // Start X for the white keys (centered)
         const startXWhite = (w - whiteRowWidth) / 2;
-        const startYWhite = h - 140; // Bottom row
+        const startYWhite = h - 110; // Bottom row
         const startYBlack = startYWhite - (bh + gap); // Top row
     
         // 1. Define White Keys (C to B)

@@ -689,3 +689,66 @@ const ChordCompletionVariant = {
         });
     }
 };
+
+const SlideShowVariant = {
+    label: "Fretboard Slideshow",
+    skipHeatMap: true, // Don't show heatmap during slideshow
+    statKey: null,
+    init(engine) {
+        this.state = "START"; // START, QUESTION, ANSWER
+        // 1. Pick random Fret (0-12) and String (0-5)
+        this.currentFret = Math.floor(Math.random() * 13);
+        this.currentString = Math.floor(Math.random() * 6);
+        
+        // 2. Determine Note Name
+        const stringBasePitches = [40, 45, 50, 55, 59, 64]; 
+        const pitch = stringBasePitches[this.currentString] + this.currentFret;
+        this.noteName = NOTES[pitch % 12];
+
+        // 3. Set State
+        this.state = "QUESTION";
+        this.timer = Date.now();
+        this.abortWait=false;
+
+        // Clear engine history/taps so only our "?" shows
+        engine.history = [];
+        engine.tappedKeys.clear();
+
+    },
+
+    onTap(engine, sIdx, f, noteName, x, y) {
+        this.abortWait=true;
+    },
+    
+    render(engine) {
+        const ctx = engine.ctx;
+        const now = Date.now();
+        const elapsed = now - this.timer;
+
+        if ( this.state === "QUESTION" && (this.abortWait || elapsed >= 3000)) {
+            // Reveal the answer after 3 seconds
+            this.state = "ANSWER";
+                
+            engine.totalFound++;
+            engine.totalDelay += now - this.timer;
+            engine.avg = Math.round((6000 * (engine.totalFound * 1000/ engine.totalDelay))) / 100;
+            engine.avgReactionTime = engine.totalDelay / engine.totalFound / 1000;
+        } 
+        else if (this.state === "ANSWER") {
+            // Wait 1 second after answer, then restart
+            setTimeout(() => engine.reset(true), 1200);
+            this.state = "WAIT";
+        }
+
+        const pos = engine.getFretCoordinates(this.currentString, this.currentFret);
+        // Draw the location marker
+        if (this.state === "QUESTION") {
+            // Draw a "?" circle at the fret location
+            engine.drawNode(pos.x, pos.y, "?", "#555", 20, 1.0);
+        } else if (this.state === "ANSWER" || this.state === "WAIT") {
+            // Draw the actual note circle
+            engine.drawNode(pos.x, pos.y, this.noteName, "green", 20, 1.0);
+        }
+
+    }
+};

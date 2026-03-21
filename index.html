@@ -59,13 +59,14 @@
 
 <div class="ui-layer">
     <div class="btn-group">
-        <button id="optionsBtn" onclick="toggleMenu(true)">Opt.</button>
-        <button onclick="switchGame('keyboard')">G1</button>
-        <button onclick="switchGame('extreme')" >G2</button>
-        <button onclick="switchGame('interval')">G3</button>
-        <button onclick="switchGame('section')">G4</button>
-        <button onclick="switchGame('single')">G5</button>
-        <button onclick="switchGame('chords')">G6</button>
+        <button id="optionsBtn" onclick="toggleMenu(true)">...</button>
+        <button onclick="switchGame('keyboard')">1</button>
+        <button onclick="switchGame('extreme')" >2</button>
+        <button onclick="switchGame('interval')">3</button>
+        <button onclick="switchGame('section')">4</button>
+        <button onclick="switchGame('single')">5</button>
+        <button onclick="switchGame('chords')">6</button>
+        <button onclick="switchGame('show')">7</button>
         <button onclick="game.reset()">RESET</button>
     </div>
 </div>
@@ -91,7 +92,7 @@
 
 
 </div>
-<script src="variants.js?v=1.802"></script>
+<script src="variants.js?v=1.803"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
@@ -222,7 +223,7 @@ class FretboardEngine {
         if (this.variant) {
             this.variant.init(this);
         }
-        this.statKey = this.variant.statKey || "S";
+        this.statKey = this.variant.statKey ;
     }
     getFretboardLayout() {
         const fullW = this.canvas.width;
@@ -548,11 +549,7 @@ class FretboardEngine {
     
         // Clear the entire canvas
         ctx.clearRect(0, 0, fullW, h);
-       
-        if (this.variant && this.variant.render) {
-            this.variant.render(this, fbHeight); 
-        }
-        
+               
         if (this.showDebug && this.isAutoPaused) {
             this.renderStats(true);
         } else {
@@ -636,7 +633,9 @@ class FretboardEngine {
                 return p < 1;
             });
         }
-
+        if (this.variant && this.variant.render) {
+            this.variant.render(this, fbHeight); 
+        }
         this.drawLabels();
     
         // ... [Perfect Animation remains centered to fullW] ...
@@ -837,28 +836,30 @@ class FretboardEngine {
         let sum = 0, count = 0;
         const ctx = this.ctx;
         const w = this.canvas.width;
-        if (this.variant?.noStringStat){
-            NOTES.forEach(n => {
-                const val = this.stats[`${this.statKey }-${n}`] ?? -1;
-                all.push({ label: `${this.statKey }-${n}`, score: val });
-                if(val !== -1) { sum += val; count++; }
-            });
-        }else{
-            for (let s = 0; s < 6; s++) {
+        if (this.statKey){
+            if (this.variant?.noStringStat){
                 NOTES.forEach(n => {
-                    const val = this.stats[`${this.statKey }${s}-${n}`] ?? -1;
-                    all.push({ label: `${this.statKey }${s+1}-${n}`, score: val });
+                    const val = this.stats[`${this.statKey }-${n}`] ?? -1;
+                    all.push({ label: `${this.statKey }-${n}`, score: val });
                     if(val !== -1) { sum += val; count++; }
                 });
+            }else{
+                for (let s = 0; s < 6; s++) {
+                    NOTES.forEach(n => {
+                        const val = this.stats[`${this.statKey }${s}-${n}`] ?? -1;
+                        all.push({ label: `${this.statKey }${s+1}-${n}`, score: val });
+                        if(val !== -1) { sum += val; count++; }
+                    });
+                }
             }
+            
+            this.avg = count > 0 ? Math.round(sum / count) : 0;
+            const sorted = all.sort((a, b) => a.score - b.score);
+            const half = Math.min(10,sorted.length/2);
+            const worst10 = sorted.slice(0, half);
+            const best10 = sorted.filter(x => x.score !== -1).reverse().slice(0, half);
         }
-        
-        this.avg = count > 0 ? Math.round(sum / count) : 0;
-        const sorted = all.sort((a, b) => a.score - b.score);
-        const half = Math.min(10,sorted.length/2);
-        const worst10 = sorted.slice(0, half);
-        const best10 = sorted.filter(x => x.score !== -1).reverse().slice(0, half);
-        
+            
         ctx.textAlign = "right";
         ctx.font = "bold 14px monospace";
         ctx.fillStyle = "#FFD700";
@@ -960,7 +961,10 @@ function switchGame(type) {
         game.autoPauseDuration=3600000;
         game.viewHeightFactor=0.8;
     }    
-    game.calculateFrets() 
+    else if (type === 'show') {
+        game.variant = SlideShowVariant;
+        game.autoPauseDuration=3600000;
+    }    game.calculateFrets() 
     game.reset();
 }
 

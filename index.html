@@ -92,7 +92,7 @@
 
 
 </div>
-<script src="variants.js?v=1.803"></script>
+<script src="variants.js?v=1.804"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
@@ -836,30 +836,31 @@ class FretboardEngine {
         let sum = 0, count = 0;
         const ctx = this.ctx;
         const w = this.canvas.width;
-        if (this.statKey){
-            if (this.variant?.noStringStat){
+
+        if (this.variant?.noStringStat){
+            NOTES.forEach(n => {
+                const val = this.stats[`${this.statKey }-${n}`] ?? -1;
+                all.push({ label: `${this.statKey }-${n}`, score: val });
+                if(val !== -1) { sum += val; count++; }
+            });
+        }else{
+            for (let s = 0; s < 6; s++) {
                 NOTES.forEach(n => {
-                    const val = this.stats[`${this.statKey }-${n}`] ?? -1;
-                    all.push({ label: `${this.statKey }-${n}`, score: val });
+                    const val = this.stats[`${this.statKey }${s}-${n}`] ?? -1;
+                    all.push({ label: `${this.statKey }${s+1}-${n}`, score: val });
                     if(val !== -1) { sum += val; count++; }
                 });
-            }else{
-                for (let s = 0; s < 6; s++) {
-                    NOTES.forEach(n => {
-                        const val = this.stats[`${this.statKey }${s}-${n}`] ?? -1;
-                        all.push({ label: `${this.statKey }${s+1}-${n}`, score: val });
-                        if(val !== -1) { sum += val; count++; }
-                    });
-                }
             }
-            
-            this.avg = count > 0 ? Math.round(sum / count) : 0;
-            const sorted = all.sort((a, b) => a.score - b.score);
-            const half = Math.min(10,sorted.length/2);
-            const worst10 = sorted.slice(0, half);
-            const best10 = sorted.filter(x => x.score !== -1).reverse().slice(0, half);
         }
-            
+
+
+        const sorted = all.sort((a, b) => a.score - b.score);
+        const half = Math.min(10,sorted.length/2);
+        const worst10 = sorted.slice(0, half);
+        const best10 = sorted.filter(x => x.score !== -1).reverse().slice(0, half);
+        if (this.statKey){
+            this.avg = count > 0 ? Math.round(sum / count) : 0;
+        }
         ctx.textAlign = "right";
         ctx.font = "bold 14px monospace";
         ctx.fillStyle = "#FFD700";

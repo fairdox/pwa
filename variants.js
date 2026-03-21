@@ -133,6 +133,7 @@ const KeyboardVariant = {
         this.startTime = Date.now();
         engine.score=100;
         engine.mistakes=0;
+        engine.gameActive = true;
 
     },
     onTap(engine, s, f, name, x, y) {
@@ -150,6 +151,7 @@ const KeyboardVariant = {
         });
     },
     render(engine) {
+        if (!engine.gameActive) return;
         const coords = engine.getFretCoordinates(this.targetString, this.targetFret);
         engine.drawNode(coords.x, coords.y, "?", "gold", 12, 1);
         KeyboardHelper.draw(engine.ctx, this.buttons);
@@ -696,8 +698,8 @@ const SlideShowVariant = {
     statKey: null,
     init(engine) {
         this.state = "START"; // START, QUESTION, ANSWER
-        // 1. Pick random Fret (0-12) and String (0-5)
-        this.currentFret = Math.floor(Math.random() * 13);
+        // 1. Pick random Fret (1-12) and String (0-5)
+        this.currentFret = Math.floor(Math.random() * 11)+1;
         this.currentString = Math.floor(Math.random() * 6);
         
         // 2. Determine Note Name
@@ -714,6 +716,7 @@ const SlideShowVariant = {
         engine.history = [];
         engine.tappedKeys.clear();
 
+
     },
 
     onTap(engine, sIdx, f, noteName, x, y) {
@@ -724,6 +727,7 @@ const SlideShowVariant = {
         const ctx = engine.ctx;
         const now = Date.now();
         const elapsed = now - this.timer;
+        const pos = engine.getFretCoordinates(this.currentString, this.currentFret);
 
         if ( this.state === "QUESTION" && (this.abortWait || elapsed >= 3000)) {
             // Reveal the answer after 3 seconds
@@ -735,19 +739,20 @@ const SlideShowVariant = {
             engine.avgReactionTime = engine.totalDelay / engine.totalFound / 1000;
         } 
         else if (this.state === "ANSWER") {
+            engine.addLabel(this.noteName, {x:pos.x, y:pos.y, color:"green", size:55, duration:1});
             // Wait 1 second after answer, then restart
             setTimeout(() => engine.reset(true), 1200);
             this.state = "WAIT";
         }
 
-        const pos = engine.getFretCoordinates(this.currentString, this.currentFret);
+
         // Draw the location marker
         if (this.state === "QUESTION") {
             // Draw a "?" circle at the fret location
             engine.drawNode(pos.x, pos.y, "?", "#555", 20, 1.0);
         } else if (this.state === "ANSWER" || this.state === "WAIT") {
             // Draw the actual note circle
-            engine.drawNode(pos.x, pos.y, this.noteName, "green", 20, 1.0);
+            //engine.drawNode(pos.x, pos.y, this.noteName, "green", 20, 1.0);
         }
 
     }

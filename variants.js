@@ -210,8 +210,8 @@ const IntervalVariant = {
             KeyboardHelper.initButtons(engine, this);
         }
 
-        const h = engine.canvas.height;
-        KeyboardHelper.addFunctionButton(engine, this, this.optionKeyName, 40, h - 140, "#682");
+        const w = engine.canvas.width;
+        KeyboardHelper.addFunctionButton(engine, this, this.optionKeyName, w/2-25, 380, "#682");
 
         this.targetIdx = Math.floor(Math.random() * (this.formula.length - 1)) + 1;
         this.targetInterval = this.formula[this.targetIdx]; 

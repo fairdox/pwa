@@ -151,10 +151,11 @@ const KeyboardVariant = {
         });
     },
     render(engine) {
+        KeyboardHelper.draw(engine.ctx, this.buttons);
         if (!engine.gameActive) return;
         const coords = engine.getFretCoordinates(this.targetString, this.targetFret);
         engine.drawNode(coords.x, coords.y, "?", "gold", 12, 1);
-        KeyboardHelper.draw(engine.ctx, this.buttons);
+
     }
 };
 
@@ -300,7 +301,7 @@ const KeyboardHelper = {
         
         // Start X for the white keys (centered)
         const startXWhite = (w - whiteRowWidth) / 2;
-        const startYWhite = h - 110; // Bottom row
+        const startYWhite = h - 120; // Bottom row
         const startYBlack = startYWhite - (bh + gap); // Top row
     
         // 1. Define White Keys (C to B)
@@ -311,7 +312,7 @@ const KeyboardHelper = {
                 y: startYWhite,
                 w: bw, h: bh,
                 note: note,
-                color: "#eee"
+                color: "#bbb"
             });
         });
     

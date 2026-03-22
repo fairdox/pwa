@@ -173,54 +173,92 @@ const CHORD_FORMULAS = [
     { label: "Diminished", formula: ["1", "b3", "b5"], semitones: [0, 3, 6] },
     { label: "Augmented", formula: ["1", "3", "#5"], semitones: [0, 4, 8] }
 ];
+function getUniqueIntervals(formulas) {
+    const allIntervals = [];
+    formulas.forEach(chord => {
+        chord.formula.forEach(interval => {
+            if (!allIntervals.includes(interval)) {
+                allIntervals.push(interval);
+            }
+        });
+    });
+
+    // Optional: Sort them logically so the palette stays organized
+    // We want 1, 2, b3, 3... not a random order.
+    const order = ["1", "b2", "2", "b3", "3", "4", "b5", "5", "#5", "b6", "6", "b7", "7", "9", "11", "13"];
+    return allIntervals.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+}
+
 const IntervalVariant = {
-    label: "What note is missing?",
+    label:"",
     statKey: "W1",
+    mode: 0, 
+    optionKeyName: "1|A",
+
     init(engine) {
-        KeyboardHelper.initButtons(engine, this);
-        
-        // 1. Pick a random Root and Chord Type
         this.rootIdx = Math.floor(Math.random() * 12);
         this.rootNote = NOTES[this.rootIdx];
         
         const type = CHORD_FORMULAS[Math.floor(Math.random() * CHORD_FORMULAS.length)];
         this.chordLabel = type.label;
-        this.formula = type.formula;     // ["1", "3", "5"]
-        this.semitones = type.semitones; // [0, 4, 7]
-        
-        // 2. Pick the 'Question' (anything except the Root)
+        this.formula = type.formula;
+        this.semitones = type.semitones;
+
+        if (this.mode === 1) {
+            KeyboardHelper.initDynamicMasterPalette(engine, this);
+        } else {
+            KeyboardHelper.initButtons(engine, this);
+        }
+
+        const h = engine.canvas.height;
+        KeyboardHelper.addFunctionButton(engine, this, this.optionKeyName, 40, h - 140, "#682");
+
         this.targetIdx = Math.floor(Math.random() * (this.formula.length - 1)) + 1;
-        this.targetNote = NOTES[(this.rootIdx + this.semitones[this.targetIdx]) % 12];
-        //this.label =   this.targetNote ;
+        this.targetInterval = this.formula[this.targetIdx]; 
+        this.targetNoteName = NOTES[(this.rootIdx + this.semitones[this.targetIdx]) % 12];
+
+        const prompt = this.mode === 0 ? 
+            `Find the missing note` : 
+            `What is the role of ${this.targetNoteName}?`;
+        
+        engine.addLabel(prompt, { duration: -1, y: 80 });
 
         this.userAttempt = null;
         this.startTime = Date.now();
     },
 
     onTap(engine, s, f, name, x, y) {
-
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);
-        if (!btn) {
-            //this.label="no button";
+        if (!btn) return;
+
+        if (btn.note === this.optionKeyName) {
+            this.mode = this.mode === 0 ? 1 : 0;
+            setTimeout(() => engine.reset(true), 100);
             return;
         }
-        //this.label=`${x} ${y} ${btn.note}`;
 
-        const isCorrect = btn.note === this.targetNote;
-        const tappedSemitones = (NOTES.indexOf(btn.note) - this.rootIdx + 12) % 12;
+        // Logic Check: Mode 0 looks for Note Name, Mode 1 looks for Interval String
+        const isCorrect = this.mode === 0 ? 
+            btn.note === this.targetNoteName : 
+            btn.note === this.targetInterval;
         
-        // Find if the tapped note belongs to ANY slot in the current chord formula
-        const slotIdx = this.semitones.indexOf(tappedSemitones);
+        const clickedSlotIdx = this.mode === 1 ? 
+            this.formula.indexOf(btn.note) : 
+            this.semitones.indexOf((NOTES.indexOf(btn.note) - this.rootIdx + 12) % 12);
 
         this.userAttempt = { 
-            note: btn.note, 
+            val: btn.note, 
             isCorrect: isCorrect,
-            slotIdx: slotIdx // -1 if not in the chord
+            slotIdx: clickedSlotIdx 
         };
-        //alert(btn.note);
 
         engine.processResult(isCorrect, {
             visualX: x, visualY: y, noteName: btn.note, distance: 0
+        });
+
+        engine.addLabel(isCorrect ? "Correct!" : "Try again", { 
+            color: isCorrect ? "green" : "red", 
+            duration: 1 
         });
     },
 
@@ -236,52 +274,48 @@ const IntervalVariant = {
         ctx.textAlign = "center";
         ctx.fillStyle = "white";
         ctx.font = "bold 22px sans-serif";
-        ctx.fillText(`${this.chordLabel}: ${this.rootNote}`, w / 2, centerY - 50);
+        ctx.fillText(`${this.rootNote} ${this.chordLabel}`, w / 2, centerY - 70);
+        
+        ctx.font = "16px sans-serif";
+        ctx.fillStyle = "#aaa";
+        ctx.fillText(this.mode === 0 ? "Find the missing note:" : "Identify the role:", w / 2, centerY - 45);
 
-        // Draw the squares based on the chord formula (e.g., 3 squares for Major)
         this.formula.forEach((interval, i) => {
             const x = startX + i * (sqSize + gap);
             const isTarget = (i === this.targetIdx);
             const noteAtSlot = NOTES[(this.rootIdx + this.semitones[i]) % 12];
 
-            // 1. Draw Square
             ctx.strokeStyle = isTarget ? "gold" : "#444";
             ctx.lineWidth = isTarget ? 3 : 1;
             KeyboardHelper.roundRect(ctx, x, centerY, sqSize, sqSize, 8, false, true);
 
-            // 2. Draw Interval Hint (1, 3, 5, etc.)
-            ctx.fillStyle = "#999";
-            ctx.font = "14px sans-serif";
-            ctx.fillText(interval, x + sqSize/2, centerY - 10);
-
-            // 3. Logic for what note to display in the square
-            if (i === 0) {
-                // Root is always visible
+            if (i === 0 || !isTarget) {
+                ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                ctx.font = "14px sans-serif";
+                ctx.fillText(interval, x + sqSize/2, centerY + 20);
                 ctx.fillStyle = "white";
-                ctx.fillText(noteAtSlot, x + sqSize/2, centerY + sqSize/2 + 6);
-            } else if (this.userAttempt && this.userAttempt.isCorrect && isTarget) {
-                // Correct answer turns green
-                ctx.fillStyle = "#4CAF50";
                 ctx.font = "bold 18px sans-serif";
-                ctx.fillText(noteAtSlot, x + sqSize/2, centerY + sqSize/2 + 6);
-            } else if (this.userAttempt && !this.userAttempt.isCorrect && this.userAttempt.slotIdx === i) {
-                // If you tapped the WRONG chord member (e.g., tapped the 5th instead of 3rd)
-                ctx.fillStyle = "#FF5252";
-                ctx.font = "bold 18px sans-serif";
-                ctx.fillText(noteAtSlot, x + sqSize/2, centerY + sqSize/2 + 6);
+                ctx.fillText(noteAtSlot, x + sqSize/2, centerY + 42);
             } else {
-                // Placeholder/Hint: Show chord members in faint grey
-                ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-                ctx.font = "18px sans-serif";
-                ctx.fillText(isTarget ? "?" : noteAtSlot, x + sqSize/2, centerY + sqSize/2 + 6);
+                if (this.userAttempt?.isCorrect) {
+                    ctx.fillStyle = "#4CAF50";
+                    ctx.font = "bold 20px sans-serif";
+                    ctx.fillText(this.mode === 0 ? noteAtSlot : interval, x + sqSize/2, centerY + sqSize/2 + 7);
+                } else {
+                    ctx.fillStyle = "gold";
+                    ctx.font = "bold 22px sans-serif";
+                    ctx.fillText(this.mode === 1 ? this.targetNoteName : "?", x + sqSize/2, centerY + sqSize/2 + 7);
+                }
             }
         });
 
-        // 4. Handle "Completely Off" notes (not in the chord at all)
-        if (this.userAttempt && !this.userAttempt.isCorrect && this.userAttempt.slotIdx === -1) {
+        if (this.userAttempt && !this.userAttempt.isCorrect) {
             ctx.fillStyle = "#FF5252";
-            ctx.font = "bold 18px sans-serif";
-            ctx.fillText(`No! ${this.userAttempt.note} is not in this chord.`, w / 2, centerY + sqSize + 40);
+            ctx.font = "bold 16px sans-serif";
+            const msg = this.mode === 0 ? 
+                `${this.userAttempt.val} is not in this chord` : 
+                `${this.userAttempt.val} is not the role of ${this.targetNoteName}`;
+            ctx.fillText(msg, w / 2, centerY + sqSize + 40);
         }
 
         KeyboardHelper.draw(ctx, this.buttons);
@@ -305,7 +339,8 @@ const KeyboardHelper = {
         const startYBlack = startYWhite - (bh + gap); // Top row
     
         // 1. Define White Keys (C to B)
-        const whiteNotes = ["C", "D", "E", "F", "G", "A", "B"];
+        const whiteNotes =["C", "D", "E", "F", "G", "A", "B"] ;
+        
         whiteNotes.forEach((note, i) => {
             variant.buttons.push({
                 x: startXWhite + i * (bw + gap),
@@ -315,10 +350,8 @@ const KeyboardHelper = {
                 color: "#bbb"
             });
         });
-    
-        // 2. Define Black Keys with specific offsets
-        // Each index represents which white-key gap to sit above
-        // C#(0.5), D#(1.5), F#(3.5), G#(4.5), A#(5.5)
+        
+        // 2. Define Black Keys with Mode-aware labels
         const blackKeys = [
             { note: "C#", slot: 0.5 },
             { note: "D#", slot: 1.5 },
@@ -326,7 +359,7 @@ const KeyboardHelper = {
             { note: "G#", slot: 4.5 },
             { note: "A#", slot: 5.5 }
         ];
-    
+
         blackKeys.forEach(bk => {
             variant.buttons.push({
                 x: startXWhite + bk.slot * (bw + gap),
@@ -334,6 +367,48 @@ const KeyboardHelper = {
                 w: bw, h: bh,
                 note: bk.note,
                 color: "#333"
+            });
+        });
+    },
+
+    addFunctionButton(engine, variant, name, x=10, y=270, color="#666") {
+        variant.buttons.push({
+                x: x,
+                y: y,
+                w: 55, h: 40,
+                note: name,
+                color: color
+            });
+    },
+
+    initDynamicMasterPalette(engine, variant) {
+        variant.buttons = [];
+        const btnW = 50, btnH = 40, gap = 8;
+        const cols = 4;
+        
+        // Get all unique intervals from your specific CHORD_FORMULAS array
+        const masterList = getUniqueIntervals(CHORD_FORMULAS);
+    
+        const totalW = (cols * btnW) + ((cols - 1) * gap);
+        const startX = (engine.canvas.width - totalW) / 2;
+        const startY = engine.canvas.height - 220; // Move up if list gets long
+    
+        masterList.forEach((interval, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            
+            // Visual logic: highlight intervals that are in the CURRENT chord
+            const isInCurrentChord = variant.formula.includes(interval);
+            
+            variant.buttons.push({
+                x: startX + col * (btnW + gap),
+                y: startY + row * (btnH + gap),
+                w: btnW,
+                h: btnH,
+                note: interval,
+                // If it's in the chord, give it a subtle border or different shade
+                color: interval === "1" ? "#cc0000" : (isInCurrentChord ? "#666" : "#333"),
+                borderColor: isInCurrentChord ? "gold" : "transparent"
             });
         });
     },

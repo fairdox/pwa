@@ -97,7 +97,7 @@
     </div>
 
 </div>
-<script src="variants.js?v=1.810"></script>
+<script src="variants.js?v=1.813"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
@@ -219,6 +219,7 @@ class FretboardEngine {
     reset(keepScore = false) {
         this.history = [];
         this.animations = [];
+        this.perfectAnim = null;
         this.tappedKeys.clear();
         this.gameActive = true;
         this.isAutoPaused = false;
@@ -227,8 +228,18 @@ class FretboardEngine {
         if (!keepScore) this.score = 0;
         if (this.variant) {
             this.variant.init(this);
+            this.statKey = this.variant.statKey;
         }
-        this.statKey = this.variant.statKey ;
+        if (! keepScore){
+            this.totalDelay=0;
+            this.totalFound=0;
+            this.avgReactionTime=0;
+            if (this.variant.countdown>0){
+                this.triggerPerfect(`${this.variant.countdown}`,this.variant.countdown,1000);
+                this.gameActive = false;
+            }
+        }
+        
     }
     getFretboardLayout() {
         const fullW = this.canvas.width;
@@ -254,9 +265,7 @@ class FretboardEngine {
 
     handleTouch(e) {
         if (this.isAutoPaused) {
- 
             this.reset(true);
-            this.variant.init(this); 
             return;
         }
     
@@ -648,11 +657,12 @@ class FretboardEngine {
             const elapsed = now - this.perfectAnim.startTime;
             const p = elapsed / this.perfectAnim.duration;
             if (p < 1) {
-                const scale = 1 + Math.sin(p * Math.PI) * 2;
+                //const scale = 1 + Math.sin(p * Math.PI) * 2;
+                const scale = 1 + Math.pow(1 - p, 2) * 4;
                 const alpha = Math.sin(p * Math.PI);
                 ctx.save();
                 ctx.translate(fullW / 2, h / 2); // Center to the real screen center
-                ctx.rotate(p * -45 * Math.PI / 180);
+                //ctx.rotate(p * -45 * Math.PI / 180);
                 ctx.scale(scale, scale);
                 ctx.globalAlpha = alpha;
                 ctx.fillStyle = "#FFD700";
@@ -660,7 +670,18 @@ class FretboardEngine {
                 ctx.textAlign = "center";
                 ctx.fillText(this.perfectAnim.message, 0, 0);
                 ctx.restore();
-            } else { this.perfectAnim = null; }
+            } else { 
+                this.perfectAnim.repeat--;
+                if (this.perfectAnim.repeat ==0) {
+                    this.perfectAnim = null;
+                    this.gameActive = true;
+                    this.lastTapTime = Date.now();
+                    this.countdown=0;
+                    this.variant.init(this);
+                } else{
+                    this.triggerPerfect( `${this.perfectAnim.repeat}`, this.perfectAnim.repeat ,  this.perfectAnim.duration);
+                }
+            }
         }
     
         // 5. Update Hints (applying offsetX)
@@ -726,11 +747,12 @@ class FretboardEngine {
     }
 
     
-    triggerPerfect(msg) {
+    triggerPerfect(msg, repeat=0, duration=1500 ) {
         this.perfectAnim = {
             startTime: Date.now(),
-            duration: 1500,
-            message: msg
+            duration: duration,
+            message: msg,
+            repeat: repeat
         };
     }
 

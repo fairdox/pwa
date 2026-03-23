@@ -112,6 +112,7 @@ const ExtremeAccidentalVariant = {
 const KeyboardVariant = {
     label: "What's that note?",
     statKey: "K",
+    countdown: 3,
     init(engine) {
         // Pick a target location (using your existing worst-score logic)
         const candidates = engine.getWorstCombos(10);
@@ -147,8 +148,10 @@ const KeyboardVariant = {
 
         engine.processResult(isCorrect, {
             visualX: coords.x, visualY: coords.y,
-            sIdx: this.targetString, noteName: btn.note, distance: 0
+            sIdx: this.targetString, noteName: btn.note, distance: 0,
+            stayOnChallenge: false
         });
+        
     },
     render(engine) {
         KeyboardHelper.draw(engine.ctx, this.buttons);
@@ -211,7 +214,8 @@ const IntervalVariant = {
         }
 
         const w = engine.canvas.width;
-        KeyboardHelper.addFunctionButton(engine, this, this.optionKeyName, w/2-25, 380, "#682");
+        const h = engine.canvas.height;
+        KeyboardHelper.addFunctionButton(engine, this, this.optionKeyName, w/2-25, h-265, "#682");
 
         this.targetIdx = Math.floor(Math.random() * (this.formula.length - 1)) + 1;
         this.targetInterval = this.formula[this.targetIdx]; 

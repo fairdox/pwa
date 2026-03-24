@@ -196,7 +196,6 @@ const IntervalVariant = {
     label:"",
     statKey: "W1",
     mode: 0, 
-    optionKeyName: "1|A",
 
     init(engine) {
         this.rootIdx = Math.floor(Math.random() * 12);
@@ -215,7 +214,7 @@ const IntervalVariant = {
 
         const w = engine.canvas.width;
         const h = engine.canvas.height;
-        KeyboardHelper.addFunctionButton(engine, this, this.optionKeyName, w/2-25, h-265, "#682");
+        KeyboardHelper.addFunctionButton(engine, this, "1|A",  w/2-25, h-265, "#682",()=> this.switchMode(engine));
 
         this.targetIdx = Math.floor(Math.random() * (this.formula.length - 1)) + 1;
         this.targetInterval = this.formula[this.targetIdx]; 
@@ -231,15 +230,14 @@ const IntervalVariant = {
         this.startTime = Date.now();
     },
 
+    switchMode(engine){
+        this.mode = this.mode === 0 ? 1 : 0;
+        setTimeout(() => engine.reset(true), 100);
+    },
+
     onTap(engine, s, f, name, x, y) {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);
         if (!btn) return;
-
-        if (btn.note === this.optionKeyName) {
-            this.mode = this.mode === 0 ? 1 : 0;
-            setTimeout(() => engine.reset(true), 100);
-            return;
-        }
 
         // Logic Check: Mode 0 looks for Note Name, Mode 1 looks for Interval String
         const isCorrect = this.mode === 0 ? 
@@ -375,12 +373,12 @@ const KeyboardHelper = {
         });
     },
 
-    addFunctionButton(engine, variant, name, x=10, y=270, color="#666", callback=null) {
+    addFunctionButton(engine, variant, label, x=10, y=270, color="#666", callback=null) {
         variant.buttons.push({
                 x: x,
                 y: y,
                 w: 55, h: 40,
-                note: name,
+                note: label,
                 color: color,
                 callback
             });
@@ -610,9 +608,6 @@ const ChordCompletionVariant = {
     label: "",
     statKey: "Ch",
     colors: [ "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8B00FF","#8B00FF" ],
-    hintsKeyName: "Hints",
-    clearKeyName: "clear",
-
     clear(engine) {
         // 1. Reset Variant tracking
         this.foundNotes.fill(null);
@@ -631,28 +626,29 @@ const ChordCompletionVariant = {
     hints(engine){
         this.showHints = ! this.showHints;
     },
-    
-    init(engine) {
-        this.rootIdx = Math.floor(Math.random() * 12);
-        //this.rootIdx = 5;
-        this.rootNote = NOTES[this.rootIdx];
-        
-        const type = CHORD_FORMULAS[Math.floor(Math.random() * CHORD_FORMULAS.length)];
-        //const type = CHORD_FORMULAS[9];
 
-        this.showHints = false;
-        this.buttons=[];
-        const w = engine.canvas.width;
-        const h = engine.canvas.height;
-        KeyboardHelper.addFunctionButton(engine, this, this.hintsKeyName, w-65, h-145, "#682", () => this.hints(engine)); 
-        KeyboardHelper.addFunctionButton(engine, this, this.clearKeyName, w-65, h-95, "#A82",  () => this.clear(engine)); 
-        
+    switchRoot(engine,reset=true){
+        this.rootIdx =  ++this.rootIdx % 12;
+        this.rootNote = NOTES[this.rootIdx];                
+        //this.rootIdx = 5;
+        if (reset) this.resetGame(engine);
+    },
+
+    switchChord(engine, reset=true){
+        this.chordIdx = ++this.chordIdx % CHORD_FORMULAS.length;
+        const type = CHORD_FORMULAS[this.chordIdx];
+        //const type = CHORD_FORMULAS[9];
         this.chordLabel = type.label;
+
         this.formula = type.formula;
         this.semitones = type.semitones;
         this.semitones=this.semitones.map(s => s % 12); // to normalize somitones that are > 12 
         
         this.foundNotes = new Array(this.formula.length).fill(null);
+        if (reset) this.resetGame(engine);
+    },
+
+    resetGame(engine){
         this.usedStrings = new Set(); // Track string indices
         this.historyStack = [];       // For the Undo function
         
@@ -661,10 +657,26 @@ const ChordCompletionVariant = {
         this.rootPitch = null;        // To store the first note's absolute "height"
 
         engine.addLabel("Find the root note", { duration: -1 });
+        
         this.skipSavingTaps = true; // allow multiple taps on the same note
         this.skipHeatMap=true;
 
         engine.score = 0;
+    },
+    
+    init(engine) {
+        this.showHints = false;
+        this.buttons=[];
+        const w = engine.canvas.width;
+        const h = engine.canvas.height;
+        KeyboardHelper.addFunctionButton(engine, this, "Hints", w/2-65, h-65, "#682", () => this.hints(engine)); 
+        KeyboardHelper.addFunctionButton(engine, this, "Clear", w/2, h-65, "#A82",  () => this.clear(engine));
+        KeyboardHelper.addFunctionButton(engine, this, "root", 25, h-180, "#682",  () => this.switchRoot(engine)); 
+        KeyboardHelper.addFunctionButton(engine, this, "Chord", w-75, h-180, "#682",  () => this.switchChord(engine));
+        this.rootIdx=-1;
+        this.chordIdx=-1;
+        this.switchRoot(engine,false);
+        this.switchChord(engine,true);
     },
 
     onTap(engine, sIdx, f, noteName, x, y) {

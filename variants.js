@@ -375,13 +375,14 @@ const KeyboardHelper = {
         });
     },
 
-    addFunctionButton(engine, variant, name, x=10, y=270, color="#666") {
+    addFunctionButton(engine, variant, name, x=10, y=270, color="#666", callback=null) {
         variant.buttons.push({
                 x: x,
                 y: y,
                 w: 55, h: 40,
                 note: name,
-                color: color
+                color: color,
+                callback
             });
     },
 
@@ -420,7 +421,12 @@ const KeyboardHelper = {
     // Hit detection for any variant using this helper
     checkClick(buttons, x, y) {
         //alert(`${x} ${y}`);
-        return buttons.find(b => x >= b.x && x <= (b.x + b.w) && y >= b.y && y <= (b.y + b.h));
+        const btn= buttons.find(b => x >= b.x && x <= (b.x + b.w) && y >= b.y && y <= (b.y + b.h));
+        if (btn && btn.callback && typeof btn.callback === 'function') {
+            btn.callback(); 
+            return null;
+        }
+        return btn;
     },
 
     // Standard rendering loop
@@ -604,6 +610,27 @@ const ChordCompletionVariant = {
     label: "",
     statKey: "Ch",
     colors: [ "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8B00FF","#8B00FF" ],
+    hintsKeyName: "Hints",
+    clearKeyName: "clear",
+
+    clear(engine) {
+        // 1. Reset Variant tracking
+        this.foundNotes.fill(null);
+        this.usedStrings.clear();
+        this.rootPitch = null;
+        this.completed = false;
+    
+        // 2. Reset Engine visual tracking
+        engine.tappedKeys.clear();
+        engine.history = []; // Clears the colored dots on the fretboard
+    
+        // 3. Optional: Reset start time if you want to reset the speed bonus
+        this.startTime = Date.now();
+    },
+
+    hints(engine){
+        this.showHints = ! this.showHints;
+    },
     
     init(engine) {
         this.rootIdx = Math.floor(Math.random() * 12);
@@ -612,6 +639,13 @@ const ChordCompletionVariant = {
         
         const type = CHORD_FORMULAS[Math.floor(Math.random() * CHORD_FORMULAS.length)];
         //const type = CHORD_FORMULAS[9];
+
+        this.showHints = false;
+        this.buttons=[];
+        const w = engine.canvas.width;
+        const h = engine.canvas.height;
+        KeyboardHelper.addFunctionButton(engine, this, this.hintsKeyName, w-65, h-145, "#682", () => this.hints(engine)); 
+        KeyboardHelper.addFunctionButton(engine, this, this.clearKeyName, w-65, h-95, "#A82",  () => this.clear(engine)); 
         
         this.chordLabel = type.label;
         this.formula = type.formula;
@@ -629,10 +663,13 @@ const ChordCompletionVariant = {
         engine.addLabel("Find the root note", { duration: -1 });
         this.skipSavingTaps = true; // allow multiple taps on the same note
         this.skipHeatMap=true;
+
         engine.score = 0;
     },
 
     onTap(engine, sIdx, f, noteName, x, y) {
+
+        const btn = KeyboardHelper.checkClick(this.buttons, x, y);     
         if (!noteName || this.completed) return;
     
         const stringBasePitches = [40, 45, 50, 55, 59, 64]; 
@@ -706,36 +743,12 @@ const ChordCompletionVariant = {
         }
     },
 
-    clear(engine) {
-        // 1. Reset Variant tracking
-        this.foundNotes.fill(null);
-        this.usedStrings.clear();
-        this.rootPitch = null;
-        this.completed = false;
     
-        // 2. Reset Engine visual tracking
-        engine.tappedKeys.clear();
-        engine.history = []; // Clears the colored dots on the fretboard
-    
-        // 3. Optional: Reset start time if you want to reset the speed bonus
-        this.startTime = Date.now();
-    },
-
     render(engine) {
         const ctx = engine.ctx;
         const w = engine.canvas.width;
         const h = engine.canvas.height;
 
-
-        // --- Draw Clear Button ---
-        this.clearBtn = { x: w-80, y: h-160, w: 70, h: 40 }; // Store for hit detection
-        ctx.fillStyle = "#FF5252"; // Red to indicate a "Reset"
-        KeyboardHelper.roundRect(ctx, this.clearBtn.x, this.clearBtn.y, this.clearBtn.w, this.clearBtn.h, 5, true, false);
-        
-        ctx.fillStyle = "white";
-        ctx.font = "bold 14px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("CLEAR", this.clearBtn.x + 40, this.clearBtn.y + 20);
         // 1. Draw Chord Header
         ctx.textAlign = "center";
         ctx.fillStyle = "white";
@@ -757,10 +770,12 @@ const ChordCompletionVariant = {
             ctx.lineWidth = 2;
             KeyboardHelper.roundRect(ctx, x, sqY, sqSize, sqSize, 8, false, true);
 
-            // Interval Label (Hint)
-            ctx.fillStyle = "#aaa";
-            ctx.font = "12px sans-serif";
-            ctx.fillText(interval, x + sqSize/2, sqY - 10);
+            if (this.showHints){
+                // Interval Label (Hint)
+                ctx.fillStyle = "#aaa";
+                ctx.font = "12px sans-serif";
+                ctx.fillText(interval, x + sqSize/2, sqY - 10);
+            }
 
             // If note found, draw it with its ROYGBIV color
             if (foundNote) {
@@ -769,6 +784,7 @@ const ChordCompletionVariant = {
                 ctx.fillText(foundNote, x + sqSize/2, sqY + sqSize/2 + 7);
             }
         });
+        KeyboardHelper.draw(ctx, this.buttons);
     }
 };
 

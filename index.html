@@ -32,8 +32,56 @@
             font-weight: bold; 
             cursor: pointer;
         }
-
-        #optionsMenu {
+        #menuTrigger {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 100;
+            background: #444;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        
+        #sideMenu {
+            position: fixed;
+            top: 0;
+            left: -280px; /* Hidden off-screen */
+            width: 250px;
+            height: 100%;
+            background: rgba(30, 30, 30, 0.95);
+            color: white;
+            transition: 0.3s ease-in-out;
+            z-index: 101;
+            padding: 15px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+        }
+        
+        #sideMenu.active {
+            left: 0; /* Slide in */
+        }
+        
+        .menu-items button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background: #333;
+            color: #ddd;
+            border: 1px solid #444;
+            text-align: left;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        .menu-items button:hover {
+            background: #555;
+            color: white;
+        }
+        #optionsMenuPage {
             display: none;
             position: fixed;
             top: 0;
@@ -59,19 +107,30 @@
 
 <div class="ui-layer">
     <div class="btn-group">
-        <button id="optionsBtn" onclick="toggleMenu(true)">...</button>
-        <button onclick="switchGame('keyboard')">1</button>
-        <button onclick="switchGame('extreme')" >2</button>
-        <button onclick="switchGame('interval')">3</button>
-        <button onclick="switchGame('section')">4</button>
-        <button onclick="switchGame('single')">5</button>
-        <button onclick="switchGame('chords')">6</button>
-        <button onclick="switchGame('show')">7</button>
         <button onclick="game.reset()">RESET</button>
     </div>
 </div>
 
-<div id="optionsMenu">
+<button id="menuTrigger" onclick="toggleMenu(true)">☰</button>
+<div id="sideMenu" class="menu-hidden">
+    <div class="menu-header">
+        <span>Select Mode</span>
+        <button onclick="toggleMenu(false)">✕</button>
+    </div>
+    <div class="menu-items">
+        <button onclick="switchGame('keyboard')">Keyboard Master</button>
+        <button onclick="switchGame('extreme')">Extreme Mode</button>
+        <button onclick="switchGame('interval')">Intervals</button>
+        <button onclick="switchGame('section')">Section Trainer</button>
+        <button onclick="switchGame('single')">Single Note</button>
+        <button onclick="switchGame('chords')">Chord Builder</button>
+        <button onclick="switchGame('show')">Slideshow</button>
+        <hr>
+        <button id="optionsBtn" onclick="toggleMenu(false);toggleMenuPage(true);">Options...</button>
+    </div>
+</div>
+
+<div id="optionsMenuPage">
     <h2>SETTINGS</h2>
     <div class="option-row">
         <label><input type="checkbox" id="debugToggle" onchange="game.showDebug = this.checked"> Show Debug Stats</label>
@@ -86,7 +145,7 @@
         <label><input type="checkbox" id="permission3D" onchange="requestOrientation(this.checked)" checked> 3D effect</label>
     </div>    
     
-    <button onclick="toggleMenu(false)" style="margin-top:30px; padding:15px 40px; font-size: 1.1em; background: #444; border-radius: 10px;">CLOSE & RESUME</button>
+    <button onclick="toggleMenuPage(false)" style="margin-top:30px; padding:15px 40px; font-size: 1.1em; background: #444; border-radius: 10px;">CLOSE & RESUME</button>
     <br><br>
     <button onclick="clearFretStats()" style="background: #622; border-color: #844; font-size: 0.8em;">Clear All Progress</button>
     <div>
@@ -97,7 +156,7 @@
     </div>
 
 </div>
-<script src="variants.js?v=1.813"></script>
+<script src="variants.js?v=1.814"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
@@ -281,15 +340,6 @@ class FretboardEngine {
         this.lastTapY = ty;
         this.tapCircleRadius = 20; // Reset the radius for the visual effect
 
-        // process CLEAR 
-        if (this.variant.clearBtn && 
-            tx >= this.variant.clearBtn.x && tx <= this.variant.clearBtn.x + this.variant.clearBtn.w &&
-            ty >= this.variant.clearBtn.y && ty <= this.variant.clearBtn.y + this.variant.clearBtn.h) {
-            
-            this.variant.clear(this);
-            this.tappedKeys = new Set();
-            return; 
-        }
         // 1. Check if the touch is within the Fretboard boundaries
         let fIdx = -1;
         
@@ -659,7 +709,7 @@ class FretboardEngine {
             if (p < 1) {
                 //const scale = 1 + Math.sin(p * Math.PI) * 2;
                 const scale = 1 + Math.pow(1 - p, 2) * 4;
-                const alpha = Math.sin(p * Math.PI);
+                const alpha = Math.sin(p * Math.PI) ;
                 ctx.save();
                 ctx.translate(fullW / 2, h / 2); // Center to the real screen center
                 //ctx.rotate(p * -45 * Math.PI / 180);
@@ -929,8 +979,8 @@ class FretboardEngine {
     
 const game = new FretboardEngine(document.getElementById('fretboard'));
 
-function toggleMenu(show) {
-    document.getElementById('optionsMenu').style.display = show ? 'block' : 'none';
+function toggleMenuPage(show) {
+    document.getElementById('optionsMenuPage').style.display = show ? 'block' : 'none';
     game.isPaused = show;
     if (show) {
         document.getElementById('debugToggle').checked = game.showDebug;
@@ -993,7 +1043,17 @@ function switchGame(type) {
         game.variant = SlideShowVariant;
         game.autoPauseDuration=3600000;
     }    game.calculateFrets() 
+    toggleMenu(false); // Close the drawer after selection
     game.reset();
+}
+
+function toggleMenu(isOpen) {
+    const menu = document.getElementById('sideMenu');
+    if (isOpen) {
+        menu.classList.add('active');
+    } else {
+        menu.classList.remove('active');
+    }
 }
 
 function clearFretStats() {

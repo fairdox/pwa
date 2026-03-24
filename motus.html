@@ -135,7 +135,10 @@
     function resetGame() {
 
         //alert(" Pool Size: " + pool.length);
-        targetWord = pool[Math.floor(Math.random() * pool.length)];
+        do {
+            targetWord = pool[Math.floor(Math.random() * pool.length)];
+        } while (targetWord.length!=5); // avoid empty or invalid strings
+        
         //alert(" Target: [" + targetWord + "]");
         guesses = [];
         letterStatus = {};

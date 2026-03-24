@@ -8,15 +8,16 @@ const ExtremeAccidentalVariant = {
         this.anchorIdx = Math.floor(Math.random() * 12);
         this.anchorNote = NOTES[this.anchorIdx];
 
-        // 2. Random Shift (-2 to +2, excluding 0)
-        const shifts = [-2, -1];
+        // 2. Random Shift 
+        const shifts = [-2, -1, 2,3,4];
         this.currentShift = shifts[Math.floor(Math.random() * shifts.length)];
 
         const labels = {
             "-2": "bb (Double Flat)",
             "-1": "b (Flat)",
-            "1": "# (Sharp)",
-            "2": "## (Double Sharp)"
+            "2": "## (Double Sharp)",
+            "3": "+3 semitones",
+            "4": "+4 semitones"
         };
         
         // This is the "Dictionary" prompt
@@ -69,7 +70,7 @@ const ExtremeAccidentalVariant = {
         ctx.font = "bold 26px sans-serif";
         ctx.fillText(this.instruction, w / 2, centerY - 50);
 
-        for (let i = -3; i <= 3; i++) {
+        for (let i = -2; i <= 4; i++) {
             const x = startX + (i + 3) * (sqSize + gap);
             const isAnchor = (i === 0);
             const isTarget = (i === this.currentShift);
@@ -82,7 +83,7 @@ const ExtremeAccidentalVariant = {
             // Square Label (Directional Hint)
             ctx.fillStyle = "#666";
             ctx.font = "10px sans-serif";
-            const dirLabels = ["", "bb", "b", "REF", "#", "##", ""];
+            const dirLabels = ["", "bb", "b", "REF", "#", "##", "+3", "+4", ""];
             ctx.fillText(dirLabels[i + 3], x + sqSize/2, centerY - 8);
 
             if (isAnchor) {
@@ -708,9 +709,9 @@ const ChordCompletionVariant = {
         const h = engine.canvas.height;
         KeyboardHelper.addFunctionButton(engine, this, "Hints", w/2-65, h-65, "#682", () => this.hints(engine)); 
         KeyboardHelper.addFunctionButton(engine, this, "Clear", w/2, h-65, "#A82",  () => this.clear(engine));
-        KeyboardHelper.addFunctionButton(engine, this, "^", 25, h-180, "#682",
+        KeyboardHelper.addFunctionButton(engine, this, "^", 15, h-180, "#682",
                                          () => this.incrementRoot(engine,1)); 
-        KeyboardHelper.addFunctionButton(engine, this, "v", 25, h-180+50, "#682",
+        KeyboardHelper.addFunctionButton(engine, this, "v", 15, h-180+50, "#682",
                                          () => this.incrementRoot(engine,-1)); 
         
         KeyboardHelper.addFunctionButton(engine, this, "^", w-25-30, h-180, "#682",

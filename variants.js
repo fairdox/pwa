@@ -497,12 +497,26 @@ const SectionVariant = {
     sectionSeq: 0,
     range: null,
     statKey: "Se",
+    sections: [[1,12],[1, 4], [5, 8], [9, 12],[1,7],[5,12]],
     init(engine) {
-        const sections = [[1,12],[1, 4], [5, 8], [9, 12],[1,7],[5,12]];
-        if (!this.range) {
-            this.range = sections[this.sectionSeq];
-            this.sectionSeq = (this.sectionSeq + 1) % sections.length;
-        }
+        this.buttons=[];
+        const w = engine.canvas.width;
+        const h = engine.canvas.height;
+        KeyboardHelper.addFunctionButton(engine, this, "^", w-25-30, h-180, "#682",
+                                         () => this.incrementSection(engine,1));
+        KeyboardHelper.addFunctionButton(engine, this, "v", w-25-30, h-180+50, "#682",
+                                         () => this.incrementSection(engine,-1));  
+        this.incrementSection(engine,0);
+    },
+    
+    incrementSection(engine,inc=1, reset=true){
+        this.sectionSeq+=inc;
+        if (this.sectionSeq<0) this.sectionSeq=this.sections.length-1;
+        if (this.sectionSeq>this.sections.length-1) this.sectionSeq=0
+        this.range = this.sections[this.sectionSeq];
+        if (reset) this.resetGame(engine);
+    },
+    resetGame(engine){
         const candidates = engine.getWorstCombos(5,this.targetNote);
         const selection = candidates[Math.floor(Math.random() * candidates.length)]; 
         this.targetNote = selection.note;
@@ -515,12 +529,10 @@ const SectionVariant = {
         engine.score = 100;
         engine.mistakes=0;
         this.label = `FIND ALL ${this.needed} \"${this.targetNote}\" IN FRET ${this.range[0]} TO ${this.range[1]} `;
-        //engine.animate(engine.canvas.width / 2,  engine.getSectionCenterY(this.range[0], this.range[1]), 
-        //this.targetNote, "rgba(150,150,150,0.5)");
-           
+   
     },
-
     onTap(engine, s, f, name, x, y) {
+        const btn = KeyboardHelper.checkClick(this.buttons, x, y);  
         if (f < this.range[0] || f > this.range[1]) return;
         const coords = engine.getFretCoordinates(s, f);
 
@@ -554,16 +566,17 @@ const SectionVariant = {
 
     render(engine) {
         const ctx = engine.ctx;
-        const w = engine.canvas.width;
         const rangeKey = `${this.range[0]}-${this.range[1]}`;
+        const {  firstStringX, spacingX, offsetX , activeW} = engine.getFretboardLayout();
         
-        ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
-        ctx.fillRect(0, engine.fretPositions[this.range[0]-1], w, engine.fretPositions[this.range[1]] - engine.fretPositions[this.range[0]-1]);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+        ctx.fillRect(offsetX, engine.fretPositions[this.range[0]-1], activeW, engine.fretPositions[this.range[1]] - engine.fretPositions[this.range[0]-1]);
         engine.drawNode(engine.canvas.width / 2, engine.canvas.height / 2, 
                         this.targetNote,
-                        "rgba(129, 79, 189, 0.3)",
+                        "rgba(149, 59, 159, 0.3)",
                         92,
                         0.3);
+        KeyboardHelper.draw(ctx, this.buttons);
     },
 
     calculateNeeded() {
@@ -633,6 +646,7 @@ const SingleStringVariant = {
         
         // Target Prompt
         engine.drawNode(w / 2, engine.canvas.height / 2, this.targetNote, "rgba(129, 79, 189, 0.3)", 92, 0.3);
+
 
     }
 

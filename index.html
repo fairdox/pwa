@@ -118,13 +118,13 @@
         <button onclick="toggleMenu(false)">✕</button>
     </div>
     <div class="menu-items">
-        <button onclick="switchGame('keyboard')">Keyboard Master</button>
-        <button onclick="switchGame('extreme')">Extreme Mode</button>
-        <button onclick="switchGame('interval')">Intervals</button>
-        <button onclick="switchGame('section')">Section Trainer</button>
-        <button onclick="switchGame('single')">Single Note</button>
+        <button onclick="switchGame('keyboard')">What's that note?</button>
+        <button onclick="switchGame('extreme')">Inertvals</button>
+        <button onclick="switchGame('interval')">Missing note</button>
+        <button onclick="switchGame('section')">Find note in section</button>
+        <button onclick="switchGame('single')">Find note in a string</button>
         <button onclick="switchGame('chords')">Chord Builder</button>
-        <button onclick="switchGame('show')">Slideshow</button>
+        <button onclick="switchGame('show')">Fretboard slideshow</button>
         <hr>
         <button id="optionsBtn" onclick="toggleMenu(false);toggleMenuPage(true);">Options...</button>
     </div>
@@ -300,6 +300,8 @@ class FretboardEngine {
         }
         
     }
+
+    // const {  firstStringX, spacingX, offsetX , activeW} = engine.getFretboardLayout()
     getFretboardLayout() {
         const fullW = this.canvas.width;
         const activeW = fullW * (this.viewWidthFactor || 1.0);
@@ -307,7 +309,7 @@ class FretboardEngine {
         const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
         const firstStringX = offsetX + this.marginX + 10;
     
-        return { firstStringX, spacingX, offsetX };
+        return { firstStringX, spacingX, offsetX , activeW};
     }
     getStringX(stringNum){
         const fullW = this.canvas.width;

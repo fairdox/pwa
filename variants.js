@@ -324,6 +324,9 @@ const IntervalVariant = {
     }
 };
 
+const SHAPE_RECTANGLE=1;
+const SHAPE_ARROW=2;
+
 const KeyboardHelper = {
     // Generate the two-row layout you provided
     initButtons(engine, variant) {
@@ -373,14 +376,17 @@ const KeyboardHelper = {
         });
     },
 
-    addFunctionButton(engine, variant, label, x=10, y=270, color="#666", callback=null) {
+    addFunctionButton(engine, variant, label, x=10, y=270, color="#666", callback=null, shape=SHAPE_RECTANGLE, rotation=0) {
         variant.buttons.push({
                 x: x,
                 y: y,
-                w: 55, h: 40,
+                w: shape===SHAPE_ARROW ? 40 : 55,
+                h: shape===SHAPE_ARROW ? 40 : 40,
                 note: label,
                 color: color,
-                callback
+                callback,
+                shape,
+                rotation
             });
     },
 
@@ -421,7 +427,7 @@ const KeyboardHelper = {
         //alert(`${x} ${y}`);
         const btn= buttons.find(b => x >= b.x && x <= (b.x + b.w) && y >= b.y && y <= (b.y + b.h));
         if (btn && btn.callback && typeof btn.callback === 'function') {
-            btn.callback(); 
+            btn.callback();
             return null;
         }
         return btn;
@@ -432,7 +438,10 @@ const KeyboardHelper = {
         buttons.forEach(btn => {
             ctx.fillStyle = btn.color;
             ctx.strokeStyle = "#999";
-            this.roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 8, true, true);
+            if (btn.shape===SHAPE_ARROW)
+                this.drawArrow(ctx, btn.x, btn.y, 30, btn.rotation)
+            else
+                this.roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 8);
             
             ctx.fillStyle = btn.color === "#333" ? "white" : "black";
             ctx.font = "bold 16px sans-serif";
@@ -441,7 +450,7 @@ const KeyboardHelper = {
         });
     },
 
-    roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+    roundRect(ctx, x, y, width, height, radius, fill=true, stroke=true) {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
         ctx.lineTo(x + width - radius, y);
@@ -455,6 +464,30 @@ const KeyboardHelper = {
         ctx.closePath();
         if (fill) ctx.fill();
         if (stroke) ctx.stroke();
+    },
+
+    drawArrow(ctx, x, y, size, rotation=0, fill=true, stroke=true) {
+        ctx.save();
+        
+        // 1. Move to the center of where the button should be
+        ctx.translate(x, y);
+        
+        // 2. Rotate the entire coordinate system
+        ctx.rotate(rotation * Math.PI / 180);
+        
+        // 3. Define the triangle points relative to (0,0)
+        // We offset by half-size so the rotation happens around the center
+        const half = size / 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -half);          // Top point (Tip)
+        ctx.lineTo(half, half);        // Bottom right
+        ctx.lineTo(-half, half);       // Bottom left
+        ctx.closePath();
+        
+        if (fill) ctx.fill();
+        if (stroke) ctx.stroke();
+        
+        ctx.restore(); // Reset translation/rotation for the next draw call
     }
 };
 
@@ -627,15 +660,19 @@ const ChordCompletionVariant = {
         this.showHints = ! this.showHints;
     },
 
-    switchRoot(engine,reset=true){
-        this.rootIdx =  ++this.rootIdx % 12;
+    incrementRoot(engine,inc=1, reset=true,){
+        this.rootIdx+=inc;
+        if (this.rootIdx<0) this.rootIdx=11;
+        if (this.rootIdx>11) this.rootIdx=0
         this.rootNote = NOTES[this.rootIdx];                
         //this.rootIdx = 5;
         if (reset) this.resetGame(engine);
     },
 
-    switchChord(engine, reset=true){
-        this.chordIdx = ++this.chordIdx % CHORD_FORMULAS.length;
+    incrementChord(engine,inc=1, reset=true){
+        this.chordIdx += inc;
+        if (this.chordIdx <0) this.chordIdx =CHORD_FORMULAS.length-1;
+        if (this.chordIdx > CHORD_FORMULAS.length-1) this.chordIdx =0;
         const type = CHORD_FORMULAS[this.chordIdx];
         //const type = CHORD_FORMULAS[9];
         this.chordLabel = type.label;
@@ -671,12 +708,19 @@ const ChordCompletionVariant = {
         const h = engine.canvas.height;
         KeyboardHelper.addFunctionButton(engine, this, "Hints", w/2-65, h-65, "#682", () => this.hints(engine)); 
         KeyboardHelper.addFunctionButton(engine, this, "Clear", w/2, h-65, "#A82",  () => this.clear(engine));
-        KeyboardHelper.addFunctionButton(engine, this, "root", 25, h-180, "#682",  () => this.switchRoot(engine)); 
-        KeyboardHelper.addFunctionButton(engine, this, "Chord", w-75, h-180, "#682",  () => this.switchChord(engine));
+        KeyboardHelper.addFunctionButton(engine, this, "^", 25, h-180, "#682",
+                                         () => this.incrementRoot(engine,1)); 
+        KeyboardHelper.addFunctionButton(engine, this, "v", 25, h-180+50, "#682",
+                                         () => this.incrementRoot(engine,-1)); 
+        
+        KeyboardHelper.addFunctionButton(engine, this, "^", w-25-30, h-180, "#682",
+                                         () => this.incrementChord(engine,1));
+        KeyboardHelper.addFunctionButton(engine, this, "v", w-25-30, h-180+50, "#682",
+                                         () => this.incrementChord(engine,-1));        
         this.rootIdx=-1;
         this.chordIdx=-1;
-        this.switchRoot(engine,false);
-        this.switchChord(engine,true);
+        this.incrementRoot(engine,1,false);
+        this.incrementChord(engine,1,true);
     },
 
     onTap(engine, sIdx, f, noteName, x, y) {

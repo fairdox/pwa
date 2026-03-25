@@ -813,6 +813,22 @@ class FretboardEngine {
         return num ;
        }
 
+    tappedNoteSet(sIdx = null) {
+        return new Set(
+            this.history
+                .filter(h => sIdx === null || h.sIdx === sIdx)
+                .map(h => h.name)
+        );
+    }
+                                               
+    removeHistoryItems( sIdx, noteName=null){
+        if (noteName===null){ // remove all items on string sIdx
+            this.history = this.history.filter(item => item.sIdx !== sIdx);
+            return;
+        }
+        this.history = this.history.filter(item => (item.name !== noteName && item.sIdx !== sIdx) );
+    }
+    
     processResult(isCorrect, data) {
         const { visualX, visualY, noteName, sIdx, distance, stayOnChallenge, color , skipHistory} = data;
         const now = Date.now();
@@ -840,7 +856,7 @@ class FretboardEngine {
             // 2. Effects (Using the specific chord-slot color if provided)
             const feedbackColor = color || "#4CAF50"; 
             if (! skipHistory){
-                this.history.push({ x: visualX, y: visualY, name: noteName, color: feedbackColor });
+                this.history.push({ x: visualX, y: visualY, name: noteName, color: feedbackColor, sIdx });
             }
             this.animate(visualX, visualY, noteName, feedbackColor);
             
@@ -866,7 +882,7 @@ class FretboardEngine {
             this.score -= penalty ;
             this.mistakes++;
             if (! skipHistory){
-                this.history.push({ x: visualX, y: visualY, name: noteName, color: "#FF5252" });
+                this.history.push({ x: visualX, y: visualY, name: noteName, color: "#FF5252" , id:`${sIdx}-${noteName}` });
             }
             this.animate(visualX, visualY, noteName, "#FF5252");
             this.addLabel(`-${penalty}`, { duration: 2 , color:"red", x: visualX-20, y: visualY-10, 

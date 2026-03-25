@@ -377,12 +377,15 @@ const KeyboardHelper = {
         });
     },
 
-    addFunctionButton(engine, variant, label, x=10, y=270, color="#666", callback=null, shape=SHAPE_RECTANGLE, rotation=0) {
+    addFunctionButton(engine, variant, label, x=10, y=270, color="#666",
+                      callback=null, width=55, height=40,
+                      shape=SHAPE_RECTANGLE, 
+                      rotation=0) {
         variant.buttons.push({
                 x: x,
                 y: y,
-                w: shape===SHAPE_ARROW ? 40 : 55,
-                h: shape===SHAPE_ARROW ? 40 : 40,
+                w: width,
+                h: height,
                 note: label,
                 color: color,
                 callback,
@@ -440,7 +443,7 @@ const KeyboardHelper = {
             ctx.fillStyle = btn.color;
             ctx.strokeStyle = "#999";
             if (btn.shape===SHAPE_ARROW)
-                this.drawArrow(ctx, btn.x, btn.y, 30, btn.rotation)
+                this.drawArrow(ctx, btn.x, btn.y, btn.w, btn.rotation)
             else
                 this.roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 8);
             
@@ -502,10 +505,11 @@ const SectionVariant = {
         this.buttons=[];
         const w = engine.canvas.width;
         const h = engine.canvas.height;
-        KeyboardHelper.addFunctionButton(engine, this, "^", w-25-30, h-180, "#682",
-                                         () => this.incrementSection(engine,1));
-        KeyboardHelper.addFunctionButton(engine, this, "v", w-25-30, h-180+50, "#682",
-                                         () => this.incrementSection(engine,-1));  
+        const btnw = 75;
+        const btnh = 33;
+        KeyboardHelper.addFunctionButton(engine, this, "Section", w-btnw-5, h-btnh-10, "#682",
+                                         () => this.incrementSection(engine,1),btnw, btnh);
+
         this.incrementSection(engine,0);
     },
     
@@ -696,13 +700,11 @@ const ChordCompletionVariant = {
         this.semitones = type.semitones;
         this.semitones=this.semitones.map(s => s % 12); // to normalize somitones that are > 12 
         
-        this.foundNotes = new Array(this.formula.length).fill(null);
         if (reset) this.resetGame(engine);
     },
 
     resetGame(engine){
         this.usedStrings = new Set(); // Track string indices
-        this.historyStack = [];       // For the Undo function
         
         this.completed = false;
         this.startTime = Date.now();
@@ -712,7 +714,8 @@ const ChordCompletionVariant = {
         
         this.skipSavingTaps = true; // allow multiple taps on the same note
         this.skipHeatMap=true;
-
+        this.foundNotes = new Array(this.formula.length).fill(null);
+        engine.history=[];
         engine.score = 0;
     },
     
@@ -721,90 +724,75 @@ const ChordCompletionVariant = {
         this.buttons=[];
         const w = engine.canvas.width;
         const h = engine.canvas.height;
+        const btnw = 24;
+        const btnh = 40;
         KeyboardHelper.addFunctionButton(engine, this, "Hints", w/2-65, h-65, "#682", () => this.hints(engine)); 
         KeyboardHelper.addFunctionButton(engine, this, "Clear", w/2, h-65, "#A82",  () => this.clear(engine));
-        KeyboardHelper.addFunctionButton(engine, this, "^", 15, h-180, "#682",
-                                         () => this.incrementRoot(engine,1)); 
-        KeyboardHelper.addFunctionButton(engine, this, "v", 15, h-180+50, "#682",
-                                         () => this.incrementRoot(engine,-1)); 
+        KeyboardHelper.addFunctionButton(engine, this, "^", 15, h-180, "#682", 
+                                         () => this.incrementRoot(engine,1), btnw, btnh); 
+        KeyboardHelper.addFunctionButton(engine, this, "v", 15, h-180+50, "#682", 
+                                         () => this.incrementRoot(engine,-1), btnw, btnh); 
         
-        KeyboardHelper.addFunctionButton(engine, this, "^", w-25-30, h-180, "#682",
-                                         () => this.incrementChord(engine,1));
-        KeyboardHelper.addFunctionButton(engine, this, "v", w-25-30, h-180+50, "#682",
-                                         () => this.incrementChord(engine,-1));        
+        KeyboardHelper.addFunctionButton(engine, this, "^", w-btnw-15, h-180, "#682", 
+                                         () => this.incrementChord(engine,1), btnw, btnh);
+        KeyboardHelper.addFunctionButton(engine, this, "v", w-btnw-15, h-180+50, "#682", 
+                                         () => this.incrementChord(engine,-1), btnw, btnh);        
         this.rootIdx=-1;
         this.chordIdx=-1;
         this.incrementRoot(engine,1,false);
         this.incrementChord(engine,1,true);
+        engine.addLabel("Use arrows to change chords", {color:"green", size:16, duration:-1});
     },
 
     onTap(engine, sIdx, f, noteName, x, y) {
 
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);     
-        if (!noteName || this.completed) return;
+        if (!noteName) return;
     
         const stringBasePitches = [40, 45, 50, 55, 59, 64]; 
         const currentPitch = stringBasePitches[sIdx] + f;
                 
-        // 1. Rule: Don't accept multiple notes on the same string
-        if (this.usedStrings.has(sIdx)) {
-            engine.addLabel("String already used", {color:"red"});
-            return;
-        }
-    
         const tappedIdx = NOTES.indexOf(noteName);
         const tappedSemitones = (tappedIdx - this.rootIdx + 12) % 12;
         const slotIdx = this.semitones.indexOf(tappedSemitones);
-    
+
         // Is this note part of our chord?
         if (slotIdx !== -1) {
-            
-            // 2. Sophisticated Rule: Root first, but allow lower roots
-            if (slotIdx === 0) {
-                // If this is the FIRST root found, set the reference floor
-                if (this.rootPitch === null) {
-                    this.rootPitch = currentPitch;
-                } else if (currentPitch < this.rootPitch) {
-                    // If this root is lower than our previous root, update the floor
-                    this.rootPitch = currentPitch;
-                    engine.addLabel("New lower root set!", {color: "cyan", size: 12});
-                }
-            } else {
-                // Not a root note: Must have a root established and cannot be lower
-                if (this.rootPitch === null) {
-                    engine.addLabel("Must find a root first", {color:"red"});
-                    return; 
-                } else if (currentPitch < this.rootPitch) {
-                    engine.addLabel("Note is lower than root", {color:"red"});
-                    return;
-                }
-            }
-    
-            // SUCCESS Logic
-            // Mark as found in the progress squares if not already filled
-            if (this.foundNotes[slotIdx] === null) {
+
+            const notesOnString = engine.tappedNoteSet(sIdx)     
+            engine.removeHistoryItems( sIdx); // remove all existing notes on this string
+
+            if (! notesOnString.has(noteName)) { // another correct note was tapped on this string
+                
+                // Sophisticated Rule: Root first, but allow lower roots
+                if (slotIdx === 0) {
+                    // If this is the FIRST root found, set the reference floor
+                    if (this.rootPitch === null) {
+                        this.rootPitch = currentPitch;
+                    } else if (currentPitch < this.rootPitch) {
+                        // If this root is lower than our previous root, update the floor
+                        this.rootPitch = currentPitch;
+                        engine.addLabel("New lower root set!", {color: "cyan", size: 12});
+                    }
+                } 
+                engine.processResult(true, {
+                    visualX: x, visualY: y, noteName: noteName, sIdx: sIdx,
+                    color: this.colors[slotIdx],
+                    stayOnChallenge: true 
+                });
                 this.foundNotes[slotIdx] = noteName;
-            } else {
-                engine.addLabel(`Doubling the ${this.formula[slotIdx]}`, {color: this.colors[slotIdx]});
             }
-    
-            this.usedStrings.add(sIdx);
-            this.historyStack.push({ slotIdx, sIdx });
-    
-            const isChordComplete = this.foundNotes.every(n => n !== null);
+
+
+            const tappedNotes = engine.tappedNoteSet(); 
+            this.foundNotes = this.foundNotes.map(note => 
+                (tappedNotes.has(note)) ? note : null
+            );
             
+            const isChordComplete = this.foundNotes.every(n => n !== null);          
             engine.addLabel(isChordComplete ? "Chord Complete!" : "Keep building...", { duration: -1 });
+ 
             
-            engine.processResult(true, {
-                visualX: x, visualY: y, noteName: noteName, sIdx: sIdx,
-                color: this.colors[slotIdx],
-                stayOnChallenge: true 
-            });
-    
-            if (isChordComplete) {
-                if (this.usedStrings.size==6) this.completed = true;
-                engine.addLabel("Tap RESET for another chord", {color:"green", size:16, duration:-1});
-            }
         } else {
             // WRONG NOTE
             engine.processResult(false, {

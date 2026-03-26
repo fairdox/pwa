@@ -1,35 +1,42 @@
 const ExtremeAccidentalVariant = {
     label: "EXTREME DRILL",
     statKey: "Ex",
+    // Define configuration here or inside init
+    availableShifts: [-2, -1, 1, 2, 3, 4], 
+    shiftLabels: {
+        "-2": "bb",
+        "-1": "b",
+        "0": "REF",
+        "1": "#",
+        "2": "##",
+        "3": "+3",
+        "4": "+4"
+    },
+
     init(engine) {
         KeyboardHelper.initButtons(engine, this);
 
-        // 1. Truly Random Anchor (Any of the 12 notes)
         this.anchorIdx = Math.floor(Math.random() * 12);
         this.anchorNote = NOTES[this.anchorIdx];
 
-        // 2. Random Shift 
-        const shifts = [-2, -1, 2,3,4];
-        this.currentShift = shifts[Math.floor(Math.random() * shifts.length)];
-
-        const labels = {
-            "-2": "bb (Double Flat)",
-            "-1": "b (Flat)",
-            "2": "## (Double Sharp)",
-            "3": "+3 semitones",
-            "4": "+4 semitones"
-        };
+        // Pick a random shift from our available list
+        this.currentShift = this.availableShifts[Math.floor(Math.random() * this.availableShifts.length)];
         
-        // This is the "Dictionary" prompt
-        this.instruction = `${this.anchorNote} ${labels[this.currentShift]}`;
+        // Dynamic instruction using the shiftLabels
+        const label = this.shiftLabels[this.currentShift];
+        this.instruction = `${this.anchorNote} ${label}`;
 
-        // 3. Calculate Target Note
         const targetIdx = (this.anchorIdx + this.currentShift + 12) % 12;
         this.targetNote = NOTES[targetIdx];
 
+        // Determine the range for the UI loop
+        this.minShift = Math.min(...this.availableShifts, 0);
+        this.maxShift = Math.max(...this.availableShifts, 0);
+        this.totalSquares = (this.maxShift - this.minShift) + 1;
+
         this.userAttempt = null;
         this.startTime = Date.now();
-        this.skipHeatMap=true;
+        this.skipHeatMap = true;
     },
 
     onTap(engine, s, f, name, x, y) {
@@ -39,7 +46,6 @@ const ExtremeAccidentalVariant = {
         const isCorrect = btn.note === this.targetNote;
         const tappedIdx = NOTES.indexOf(btn.note);
         
-        // Calculate relative position for the 7-square visual
         let diff = tappedIdx - this.anchorIdx;
         if (diff > 6) diff -= 12;
         if (diff < -6) diff += 12;
@@ -56,22 +62,26 @@ const ExtremeAccidentalVariant = {
     },
 
     render(engine) {
-        const ctx = engine.ctx;
-        const w = engine.canvas.width;
-        const h = engine.canvas.height;
+        const { ctx, canvas } = engine;
+        const w = canvas.width, h = canvas.height;
         const sqSize = 46, gap = 8;
-        const startX = (w - (7 * sqSize + 6 * gap)) / 2;
+        
+        // Calculate dynamic width based on the shift range
+        const totalWidth = (this.totalSquares * sqSize) + ((this.totalSquares - 1) * gap);
+        const startX = (w - totalWidth) / 2;
         const centerY = h / 2 - 40;
 
         ctx.textAlign = "center";
-        
-        // Main prompt: e.g., "Bb #"
         ctx.fillStyle = "white";
         ctx.font = "bold 26px sans-serif";
-        ctx.fillText(this.instruction, w / 2, centerY - 50);
+        ctx.fillText(this.instruction, w / 2, centerY - 60);
 
-        for (let i = -2; i <= 4; i++) {
-            const x = startX + (i + 3) * (sqSize + gap);
+        // Loop from the lowest shift to the highest shift
+        for (let i = this.minShift; i <= this.maxShift; i++) {
+            // Offset the X position based on the minimum shift value
+            const visualIdx = i - this.minShift;
+            const x = startX + visualIdx * (sqSize + gap);
+            
             const isAnchor = (i === 0);
             const isTarget = (i === this.currentShift);
 
@@ -80,28 +90,25 @@ const ExtremeAccidentalVariant = {
             ctx.lineWidth = isTarget ? 3 : 1;
             KeyboardHelper.roundRect(ctx, x, centerY, sqSize, sqSize, 6, false, true);
 
-            // Square Label (Directional Hint)
+            // Square Label (Reference from our Dictionary)
             ctx.fillStyle = "#666";
             ctx.font = "10px sans-serif";
-            const dirLabels = ["", "bb", "b", "REF", "#", "##", "+3", "+4", ""];
-            ctx.fillText(dirLabels[i + 3], x + sqSize/2, centerY - 8);
+            const topLabel = this.shiftLabels[i] || "";
+            ctx.fillText(topLabel, x + sqSize/2, centerY - 10);
 
+            // Content Logic
+            ctx.font = "bold 18px sans-serif";
             if (isAnchor) {
-                // The note you are starting from
                 ctx.fillStyle = "white";
-                ctx.font = "bold 18px sans-serif";
                 ctx.fillText(this.anchorNote, x + sqSize/2, centerY + sqSize/2 + 7);
             } else if (isTarget && !this.userAttempt) {
-                // The goal square
                 ctx.fillStyle = "rgba(255, 215, 0, 0.4)";
-                ctx.font = "bold 22px sans-serif";
                 ctx.fillText("?", x + sqSize/2, centerY + sqSize/2 + 7);
             }
 
             // Visual feedback of your tap
             if (this.userAttempt && this.userAttempt.relPos === i) {
                 ctx.fillStyle = this.userAttempt.isCorrect ? "#4CAF50" : "#FF5252";
-                ctx.font = "bold 18px sans-serif";
                 ctx.fillText(this.userAttempt.note, x + sqSize/2, centerY + sqSize/2 + 7);
             }
         }

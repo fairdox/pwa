@@ -156,11 +156,12 @@
     </div>
 
 </div>
-<script src="variants.js?v=1.816"></script>
+<script src="variants.js?v=1.817"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
 const MARKERS = [3, 5, 7, 9, 12];
+const ROYGBIV = [ "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8B00FF","#8B00FF" ];
     
 class FretboardEngine {
     constructor(canvas) {
@@ -273,6 +274,26 @@ class FretboardEngine {
             const dist = scale * (1 - Math.pow(2, -(i / 12)));
             this.fretPositions.push(this.marginTop + dist);
         }
+    }
+
+    getFretCenter(sIdx, fIdx) {
+        // 1. Get Horizontal Position (Strings)
+        const fullW = this.canvas.width;
+        const activeW = fullW * (this.viewWidthFactor || 1.0);
+        const offsetX = (fullW - activeW) / 2;
+        // spacingX is the distance between vertical string lines
+        const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
+        const x = offsetX + this.marginX + 10 + (sIdx * spacingX);   
+        // 2. Get Vertical Position (Frets)
+        let y;
+        if (fIdx === 0) {
+            // For the open string, place it slightly above the nut (fret 0 line)
+            y = this.fretPositions[0] - 15; 
+        } else {
+            // Midpoint between this fret line and the one before it
+            y = (this.fretPositions[fIdx] + this.fretPositions[fIdx - 1]) / 2;
+        }    
+        return { x, y };
     }
     
     reset(keepScore = false) {
@@ -678,7 +699,10 @@ class FretboardEngine {
             ctx.beginPath(); 
             ctx.moveTo(x, this.fretPositions[0]); 
             ctx.lineTo(x, this.fretPositions[12]+10); 
-            ctx.stroke();        
+            ctx.stroke();   
+            if (this.variant && this.variant.preRender) {
+                this.variant.preRender(this, fbHeight); 
+            }
             // 4. Draw History & Animations (applying offsetX if they aren't already absolute)
             if (this.showHistory) {
                 this.history.forEach(item => {
@@ -798,6 +822,35 @@ class FretboardEngine {
         this.ctx.globalAlpha = 1;
     }
 
+    drawChordMap(rootNote, semitones, formula) {
+        const rootPitch = NOTES.indexOf(rootNote);
+        const stringPitches = [40, 45, 50, 55, 59, 64]; // E, B, G, D, A, E
+
+        this.ctx.globalAlpha = 0.3;
+        this.ctx.font = "bold 17px sans-serif";
+        this.ctx.textAlign = "center";
+        for (let s = 0; s < 6; s++) {
+            for (let f = 0; f <= 12; f++) { 
+                const currentPitch = stringPitches[s] + f;
+                const relativeSemitone = (currentPitch - rootPitch) % 12;
+                
+                // Normalize for extensions (like #9 / 15 semitones)
+                // We check both the octave-reduced and the raw semitone
+                const rawDist = currentPitch - rootPitch;
+                const matchIdx = semitones.findIndex(st => st === rawDist || (st % 12 === relativeSemitone));
+    
+                if (matchIdx !== -1) {
+                    const pos = this.getFretCenter(s, f);
+                    const label = formula[matchIdx];
+                    this.ctx.fillStyle =ROYGBIV[matchIdx];
+
+                    this.ctx.fillText(`${label}`, pos.x+8, pos.y);
+
+                }
+            }
+        }
+        this.ctx.globalAlpha = 1;
+    }
     
     triggerPerfect(msg, repeat=0, duration=1500 ) {
         this.perfectAnim = {

@@ -180,10 +180,27 @@ const CHORD_FORMULAS = [
     { label: "Sus2 Chord", formula: ["1", "2", "5"], semitones: [0, 2, 7] },
     { label: "Major 6th", formula: ["1", "3", "5", "6"], semitones: [0, 4, 7, 9] },
     { label: "Minor 6th", formula: ["1", "b3", "5", "6"], semitones: [0, 3, 7, 9] },
-    { label: "Add9 Chord", formula: ["1", "3", "5", "9"], semitones: [0, 4, 7, 14] }, 
+    { label: "9th ", formula: ["1", "3", "5", "b7", "9"], semitones: [0, 4, 7, 10, 14] }, 
+    { label: "Add9 (Maj 9th)", formula: ["1", "3", "5", "9"], semitones: [0, 4, 7, 14] }, 
+    { label: "+9 (aug 9th)", formula: ["1", "3", "5", "b7", "#9"], semitones: [0, 4, 7, 10, 15] }, 
     { label: "Diminished", formula: ["1", "b3", "b5"], semitones: [0, 3, 6] },
-    { label: "Augmented", formula: ["1", "3", "#5"], semitones: [0, 4, 8] }
+    { label: "Augmented", formula: ["1", "3", "#5"], semitones: [0, 4, 8] },
+    // JAZZ ESSENTIALS
+    { label: "m7b5 (Half-Diminished, ø7)", formula: ["1", "b3", "b5", "b7"], semitones: [0, 3, 6, 10] },
+    { label: "dim7 (Fully Diminished, °7)", formula: ["1", "b3", "b5", "bb7"], semitones: [0, 3, 6, 9] },
+    { label: "m(maj7) (Minor-Major 7th)", formula: ["1", "b3", "5", "7"], semitones: [0, 3, 7, 11] },
+    
+    // EXTENSIONS (DOMINANT)
+    { label: "13th (Dom 13)", formula: ["1", "3", "5", "b7", "9", "13"], semitones: [0, 4, 7, 10, 14, 21] },
+    { label: "7b9 (Dom 7 Flat 9)", formula: ["1", "3", "5", "b7", "b9"], semitones: [0, 4, 7, 10, 13] },
+    { label: "7#11 (Lydian Dominant)", formula: ["1", "3", "5", "b7", "#11"], semitones: [0, 4, 7, 10, 18] },
+
+    // ROCK & POP FAVORITES
+    { label: "5 (Power Chord)", formula: ["1", "5"], semitones: [0, 7] },
+    { label: "6/9 (Major 6/9)", formula: ["1", "3", "5", "6", "9"], semitones: [0, 4, 7, 9, 14] },
+    { label: "7sus4 (Dominant 7th Sus 4)", formula: ["1", "4", "5", "b7"], semitones: [0, 5, 7, 10] }
 ];
+
 function getUniqueIntervals(formulas) {
     const allIntervals = [];
     formulas.forEach(chord => {
@@ -666,7 +683,6 @@ const SingleStringVariant = {
 const ChordCompletionVariant = {
     label: "",
     statKey: "Ch",
-    colors: [ "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8B00FF","#8B00FF" ],
     clear(engine) {
         // 1. Reset Variant tracking
         this.foundNotes.fill(null);
@@ -735,14 +751,14 @@ const ChordCompletionVariant = {
         const btnh = 40;
         KeyboardHelper.addFunctionButton(engine, this, "Hints", w/2-65, h-65, "#682", () => this.hints(engine)); 
         KeyboardHelper.addFunctionButton(engine, this, "Clear", w/2, h-65, "#A82",  () => this.clear(engine));
-        KeyboardHelper.addFunctionButton(engine, this, "^", 15, h-180, "#682", 
+        KeyboardHelper.addFunctionButton(engine, this, "^", 15, h-280, "#682", 
                                          () => this.incrementRoot(engine,1), btnw, btnh); 
-        KeyboardHelper.addFunctionButton(engine, this, "v", 15, h-180+50, "#682", 
+        KeyboardHelper.addFunctionButton(engine, this, "v", 15, h-280+50, "#682", 
                                          () => this.incrementRoot(engine,-1), btnw, btnh); 
         
-        KeyboardHelper.addFunctionButton(engine, this, "^", w-btnw-15, h-180, "#682", 
+        KeyboardHelper.addFunctionButton(engine, this, "^", w-btnw-15, h-280, "#682", 
                                          () => this.incrementChord(engine,1), btnw, btnh);
-        KeyboardHelper.addFunctionButton(engine, this, "v", w-btnw-15, h-180+50, "#682", 
+        KeyboardHelper.addFunctionButton(engine, this, "v", w-btnw-15, h-280+50, "#682", 
                                          () => this.incrementChord(engine,-1), btnw, btnh);        
         this.rootIdx=-1;
         this.chordIdx=-1;
@@ -784,7 +800,7 @@ const ChordCompletionVariant = {
                 } 
                 engine.processResult(true, {
                     visualX: x, visualY: y, noteName: noteName, sIdx: sIdx,
-                    color: this.colors[slotIdx],
+                    color: ROYGBIV[slotIdx],
                     stayOnChallenge: true 
                 });
                 this.foundNotes[slotIdx] = noteName;
@@ -810,7 +826,7 @@ const ChordCompletionVariant = {
     },
 
     
-    render(engine) {
+    preRender(engine) {
         const ctx = engine.ctx;
         const w = engine.canvas.width;
         const h = engine.canvas.height;
@@ -841,11 +857,12 @@ const ChordCompletionVariant = {
                 ctx.fillStyle = "#aaa";
                 ctx.font = "12px sans-serif";
                 ctx.fillText(interval, x + sqSize/2, sqY - 10);
+                engine.drawChordMap(this.rootNote, this.semitones, this.formula)
             }
 
             // If note found, draw it with its ROYGBIV color
             if (foundNote) {
-                ctx.fillStyle = this.colors[i];
+                ctx.fillStyle = ROYGBIV[i];
                 ctx.font = "bold 20px sans-serif";
                 ctx.fillText(foundNote, x + sqSize/2, sqY + sqSize/2 + 7);
             }

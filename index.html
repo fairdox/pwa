@@ -124,6 +124,7 @@
         <button onclick="switchGame('section')">Find note in section</button>
         <button onclick="switchGame('single')">Find note in a string</button>
         <button onclick="switchGame('chords')">Chord Builder</button>
+        <button onclick="switchGame('SemSearch')">Semitone search</button>      
         <button onclick="switchGame('show')">Fretboard slideshow</button>
         <hr>
         <button id="optionsBtn" onclick="toggleMenu(false);toggleMenuPage(true);">Options...</button>
@@ -156,9 +157,10 @@
     </div>
 
 </div>
-<script src="variants.js?v=1.817"></script>
+<script src="variants.js?v=1.818"></script>
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const stringBasePitches = [40, 45, 50, 55, 59, 64]; 
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
 const MARKERS = [3, 5, 7, 9, 12];
 const ROYGBIV = [ "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8B00FF","#8B00FF" ];
@@ -168,7 +170,7 @@ class FretboardEngine {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.marginX = 25;
-        this.marginTop = 30; 
+        this.marginTop = 40; 
         this.marginBottom = 60;
         this.fretPositions = [];
         this.variant = null;
@@ -824,14 +826,14 @@ class FretboardEngine {
 
     drawChordMap(rootNote, semitones, formula) {
         const rootPitch = NOTES.indexOf(rootNote);
-        const stringPitches = [40, 45, 50, 55, 59, 64]; // E, B, G, D, A, E
 
+        const size=16;
         this.ctx.globalAlpha = 0.3;
-        this.ctx.font = "bold 17px sans-serif";
+        this.ctx.font = `bold ${size}px sans-serif`;
         this.ctx.textAlign = "center";
         for (let s = 0; s < 6; s++) {
             for (let f = 0; f <= 12; f++) { 
-                const currentPitch = stringPitches[s] + f;
+                const currentPitch = stringBasePitches[s] + f;
                 const relativeSemitone = (currentPitch - rootPitch) % 12;
                 
                 // Normalize for extensions (like #9 / 15 semitones)
@@ -843,8 +845,12 @@ class FretboardEngine {
                     const pos = this.getFretCenter(s, f);
                     const label = formula[matchIdx];
                     this.ctx.fillStyle =ROYGBIV[matchIdx];
+                    this.ctx.lineWidth = 1;          // Thickness of the circle outline
+                    this.ctx.strokeStyle=ROYGBIV[matchIdx];
+                    this.ctx.beginPath(); this.ctx.arc(pos.x+8, pos.y, size/2+3, 0, Math.PI * 2);
+                    this.ctx.stroke();
 
-                    this.ctx.fillText(`${label}`, pos.x+8, pos.y);
+                    this.ctx.fillText(`${label}`, pos.x+8, pos.y+4);
 
                 }
             }
@@ -1075,7 +1081,7 @@ async function requestOrientation(show) {
             game.show3D= false;
         }
     }
-}
+} 
 
 function switchGame(type) {
     if (type === 'section') SectionVariant.range = null;
@@ -1108,8 +1114,13 @@ function switchGame(type) {
     else if (type === 'chords') {
         game.variant = ChordCompletionVariant;
         game.autoPauseDuration=3600000;
-        game.viewHeightFactor=0.8;
+        game.viewHeightFactor=0.84;
     }    
+    else if (type === 'SemSearch') {
+        game.variant = IntervalSearchVariant;
+        game.autoPauseDuration=3600000;
+        game.viewHeightFactor=0.97;
+    } 
     else if (type === 'show') {
         game.variant = SlideShowVariant;
         game.autoPauseDuration=3600000;

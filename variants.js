@@ -772,7 +772,7 @@ const ChordCompletionVariant = {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);     
         if (!noteName) return;
     
-        const stringBasePitches = [40, 45, 50, 55, 59, 64]; 
+        
         const currentPitch = stringBasePitches[sIdx] + f;
                 
         const tappedIdx = NOTES.indexOf(noteName);
@@ -831,11 +831,12 @@ const ChordCompletionVariant = {
         const w = engine.canvas.width;
         const h = engine.canvas.height;
 
+        const bottom =engine.getFretCoordinates(0,12);
         // 1. Draw Chord Header
         ctx.textAlign = "center";
         ctx.fillStyle = "white";
         ctx.font = "bold 24px sans-serif";
-        ctx.fillText(`${this.rootNote} ${this.chordLabel}`, w / 2, h - 150);
+        ctx.fillText(`${this.rootNote} ${this.chordLabel}`, w / 2, bottom.y+40);
 
         // 2. Draw Progress Squares
         const sqSize = 50, gap = 10;
@@ -871,6 +872,55 @@ const ChordCompletionVariant = {
     }
 };
 
+
+const IntervalSearchVariant = {
+    label:"",
+    statKey: "IS1",
+    init(engine) {
+        // 1. Define the pool of intervals to test
+        const labels = ["2", "b3", "3", "4", "b5", "5", "#5", "6", "b7", "7", "9", "#9", "11", "#11",  "13"];
+        const st =     [  2,    3,   4,   5,    6,   7,    8,   9,   10,  11,  14,   15,   17,    18,   21 ];
+
+        // 2. Pick random Root and random Target Interval
+        this.rootIdx = Math.floor(Math.random() * 12);
+        this.rootNote = NOTES[this.rootIdx];
+        
+        const targetIdx = Math.floor(Math.random() * labels.length);
+        this.targetLabel = labels[targetIdx];
+        this.targetST = st[targetIdx];
+
+        this.startTime = Date.now();
+        const h = engine.canvas.height;
+        const w = engine.canvas.width;
+        engine.addLabel(`${this.rootNote} ➔ ${this.targetLabel}`,
+                        { color:"#666", duration: -1, size:25, x:w/2, y:h-50});
+
+    },
+
+    onTap(engine, s, f, name, x, y) {
+        // Calculate the semitone distance from the root
+        const tappedPitch = stringBasePitches[s] + f;
+        const rootPitchBase = NOTES.indexOf(this.rootNote); 
+        
+        // Find distance and normalize to the target (handling octaves)
+        const rawDist = tappedPitch - rootPitchBase;
+        const isCorrect = (rawDist % 12 === this.targetST % 12);
+
+        if (isCorrect) {
+            engine.processResult(true, { visualX: x, visualY: y, noteName: name,
+                                         stayOnChallenge: true, skipHistory: false});
+        } else {
+            engine.processResult(false, { visualX: x, visualY: y, noteName: name,
+                                          stayOnChallenge: true, skipHistory: true});
+        }
+    },
+
+    render(engine) {
+        engine.drawChordMap(this.rootNote, [0], ["1"]);
+    }
+};
+
+
 const SlideShowVariant = {
     label: "Fretboard Slideshow",
     skipHeatMap: true, // Don't show heatmap during slideshow
@@ -882,7 +932,6 @@ const SlideShowVariant = {
         this.currentString = Math.floor(Math.random() * 6);
         
         // 2. Determine Note Name
-        const stringBasePitches = [40, 45, 50, 55, 59, 64]; 
         const pitch = stringBasePitches[this.currentString] + this.currentFret;
         this.noteName = NOTES[pitch % 12];
 

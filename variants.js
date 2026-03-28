@@ -120,7 +120,7 @@ const ExtremeAccidentalVariant = {
 const KeyboardVariant = {
     label: "What's that note?",
     statKey: "K",
-    countdown: 3,
+    countdown: 0,
     init(engine) {
         // Pick a target location (using your existing worst-score logic)
         const candidates = engine.getWorstCombos(10);
@@ -752,14 +752,14 @@ const ChordCompletionVariant = {
         KeyboardHelper.addFunctionButton(engine, this, "Hints", w/2-65, h-65, "#682", () => this.hints(engine)); 
         KeyboardHelper.addFunctionButton(engine, this, "Clear", w/2, h-65, "#A82",  () => this.clear(engine));
         KeyboardHelper.addFunctionButton(engine, this, "^", 15, h-280, "#682", 
-                                         () => this.incrementRoot(engine,1), btnw, btnh); 
-        KeyboardHelper.addFunctionButton(engine, this, "v", 15, h-280+50, "#682", 
                                          () => this.incrementRoot(engine,-1), btnw, btnh); 
+        KeyboardHelper.addFunctionButton(engine, this, "v", 15, h-280+50, "#682", 
+                                         () => this.incrementRoot(engine,1), btnw, btnh); 
         
         KeyboardHelper.addFunctionButton(engine, this, "^", w-btnw-15, h-280, "#682", 
-                                         () => this.incrementChord(engine,1), btnw, btnh);
+                                         () => this.incrementChord(engine,-1), btnw, btnh);
         KeyboardHelper.addFunctionButton(engine, this, "v", w-btnw-15, h-280+50, "#682", 
-                                         () => this.incrementChord(engine,-1), btnw, btnh);        
+                                         () => this.incrementChord(engine,1), btnw, btnh);        
         this.rootIdx=-1;
         this.chordIdx=-1;
         this.incrementRoot(engine,1,false);
@@ -877,27 +877,47 @@ const IntervalSearchVariant = {
     label:"",
     statKey: "IS1",
     init(engine) {
-        // 1. Define the pool of intervals to test
-        const labels = ["2", "b3", "3", "4", "b5", "5", "#5", "6", "b7", "7", "9", "#9", "11", "#11",  "13"];
-        const st =     [  2,    3,   4,   5,    6,   7,    8,   9,   10,  11,  14,   15,   17,    18,   21 ];
+        const h = engine.canvas.height;
+        const w = engine.canvas.width;
+        this.labels = ["2", "b3", "3", "4", "b5", "5", "#5", "6", "b7", "7", "9", "#9", "11", "#11",  "13"];
+        this.st =     [  2,    3,   4,   5,    6,   7,    8,   9,   10,  11,  14,   15,   17,    18,   21 ];
+        this.buttons=[];
+        const pos = engine.getFretCoordinates(0,11);
+        KeyboardHelper.addFunctionButton(engine, this, "Hints", 5, pos.y+30, "#682",
+                                         () => this.hints(engine),45,30,); 
+        KeyboardHelper.addFunctionButton(engine, this, "Next", w-5-45, pos.y+30, "#A82",
+                                         () => this.initGame(engine),45,30);
+        this.initGame(engine);
+    },
 
-        // 2. Pick random Root and random Target Interval
+    initGame(engine){
+        const h = engine.canvas.height;
+        const w = engine.canvas.width;
+        // Pick random Root and random Target Interval
         this.rootIdx = Math.floor(Math.random() * 12);
         this.rootNote = NOTES[this.rootIdx];
         
-        const targetIdx = Math.floor(Math.random() * labels.length);
-        this.targetLabel = labels[targetIdx];
-        this.targetST = st[targetIdx];
+        const targetIdx = Math.floor(Math.random() * this.labels.length);
+        this.targetLabel = this.labels[targetIdx];
+        this.targetST = this.st[targetIdx];
 
         this.startTime = Date.now();
-        const h = engine.canvas.height;
-        const w = engine.canvas.width;
+        this.showHints=false;
+        engine.history=[];
+        engine.tappedKeys.clear();
+        engine.score = 0;
         engine.addLabel(`${this.rootNote} ➔ ${this.targetLabel}`,
                         { color:"#666", duration: -1, size:25, x:w/2, y:h-50});
 
     },
 
+    hints(engine){
+        this.showHints = !this.showHints;
+    },
+
     onTap(engine, s, f, name, x, y) {
+        const btn = KeyboardHelper.checkClick(this.buttons, x, y);     
+        if (!name) return;
         // Calculate the semitone distance from the root
         const tappedPitch = stringBasePitches[s] + f;
         const rootPitchBase = NOTES.indexOf(this.rootNote); 
@@ -917,6 +937,10 @@ const IntervalSearchVariant = {
 
     render(engine) {
         engine.drawChordMap(this.rootNote, [0], ["1"]);
+        if (this.showHints){
+            engine.drawChordMap(this.rootNote, [0,this.targetST], ["1", this.targetLabel]);
+        }
+        KeyboardHelper.draw(engine.ctx, this.buttons);
     }
 };
 

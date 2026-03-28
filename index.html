@@ -824,6 +824,28 @@ class FretboardEngine {
         this.ctx.globalAlpha = 1;
     }
 
+    getIntervalColor(semitone) {
+        // Normalize to handle octaves
+        const st = Math.abs(semitone) % 12;
+    
+        const functionalMap = {
+            0:  "#FF0000", // Root: The "Anchor" (Red)
+            1:  "#4B0082", // b2: High Tension (Indigo)
+            2:  "#708090", // 2/9: Extension (Slate Gray)
+            3:  "#FFD700", // b3: Minor Quality (Amber)
+            4:  "#FFFF00", // 3: Major Quality (Bright Yellow)
+            5:  "#32CD32", // 4/11: Stable but needs resolution (Lime)
+            6:  "#008080", // b5: The "Blue Note"/Tritone (Teal)
+            7:  "#0000FF", // 5: The "Pillar" (Blue)
+            8:  "#9400D3", // b6/b13: Dark Extension (Dark Violet)
+            9:  "#9370DB", // 6/13: Bright Extension (Medium Purple)
+            10: "#FF00FF", // b7: Dominant Tension (Magenta)
+            11: "#FF1493"  // 7: Leading Tone (Deep Pink)
+        };
+    
+        return functionalMap[st] || "#FFFFFF";
+    }
+    
     drawChordMap(rootNote, semitones, formula) {
         const rootPitch = NOTES.indexOf(rootNote);
 
@@ -844,9 +866,10 @@ class FretboardEngine {
                 if (matchIdx !== -1) {
                     const pos = this.getFretCenter(s, f);
                     const label = formula[matchIdx];
-                    this.ctx.fillStyle =ROYGBIV[matchIdx];
+                    const color = this.getIntervalColor(rawDist);
+                    this.ctx.fillStyle =color;
                     this.ctx.lineWidth = 1;          // Thickness of the circle outline
-                    this.ctx.strokeStyle=ROYGBIV[matchIdx];
+                    this.ctx.strokeStyle=color;
                     this.ctx.beginPath(); this.ctx.arc(pos.x+8, pos.y, size/2+3, 0, Math.PI * 2);
                     this.ctx.stroke();
 

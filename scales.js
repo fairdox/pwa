@@ -17,8 +17,9 @@ const ScalePathVariant = {
         this.changeScaleBtn=KeyboardHelper.addFunctionButton(engine, this, "xxx", w/2-100, h-90, "lightblue",
                                          () => this.changeScale(engine),200,30,); 
         this.rootIdx=0;
-        this.startFret=5;
+        this.startFret=0;
         this.scaleIdx=0;
+        restoreVariantState(this);
         this.showHints=0;
         this.initGame(engine);        
     },

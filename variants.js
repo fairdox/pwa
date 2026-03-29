@@ -1,3 +1,44 @@
+const STORAGE_KEY = "fretboard_variant_settings";
+
+/**
+ * Saves specific attributes for the active variant.
+ */
+function saveVariantState(variant) {
+    if (!variant || !variant.statKey) return;
+
+    const master = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    
+    // Use the variant's label or statKey as the unique ID
+    master[variant.statKey] = {
+        rootIdx: variant.rootIdx,
+        chordIdx: variant.chordIdx,
+        scaleIdx: variant.scaleIdx,
+        targetIdx: variant.targetIdx, // This covers stIdx or whatever 'target' you use
+        startFret: variant.startFret  // Added this since you're practicing Box 5!
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(master));
+}
+
+/**
+ * Restores saved data into the variant before init() runs.
+ */
+function restoreVariantState(variant) {
+    if (!variant || !variant.statKey) return;
+
+    const master = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!master || !master[variant.statKey]) return;
+
+    const saved = master[variant.statKey];
+    
+    // Silently apply saved values if they exist
+    if (saved.rootIdx !== undefined) variant.rootIdx = saved.rootIdx;
+    if (saved.chordIdx !== undefined) variant.chordIdx = saved.chordIdx;
+    if (saved.scaleIdx !== undefined) variant.scaleIdx = saved.scaleIdx;  
+    if (saved.targetIdx !== undefined) variant.targetIdx = saved.targetIdx;
+    if (saved.startFret !== undefined) variant.startFret = saved.startFret;
+}
+
 const ExtremeAccidentalVariant = {
     label: "EXTREME DRILL",
     statKey: "Ex",
@@ -570,13 +611,14 @@ const ChordCompletionVariant = {
     },
     
     init(engine) {
+        this.rootIdx=0;
+        this.chordIdx=0;
+        restoreVariantState(this);
         this.showHints = false;
         this.buttons=[];
         KeyboardHelper.addFunctionKeys(engine,this);
-        this.rootIdx=-1;
-        this.chordIdx=-1;
-        this.incrementRoot(engine,1,false);
-        this.incrementChord(engine,1,true);
+        this.incrementRoot(engine,0,false);
+        this.incrementChord(engine,0,true);
         engine.addLabel("Use arrows to change chords", {color:"green", size:16, duration:-1});
     },
 
@@ -692,19 +734,30 @@ const IntervalSearchVariant = {
         this.st =     [  2,    3,   4,   5,    6,   7,    8,   9,   10,  11,  14,   15,   17,    18,   21 ];
         this.buttons=[];
         KeyboardHelper.addFunctionKeys(engine,this);
+        this.targetIdx=0;
+        this.rootIdx=0;
+        restoreVariantState(this);
         this.initGame(engine);
+    },
+    incrementRoot(engine,inc=1, reset=true,){
+        const len = NOTES.length;
+        this.rootIdx = (this.rootIdx + inc + len) % len;
+        if (reset) this.initGame(engine);
+    },
+
+    incrementChord(engine,inc=1, reset=true){
+        const len = this.labels.length;
+        this.targetIdx  = (this.targetIdx + inc + len) % len;
+        if (reset) this.initGame(engine);
     },
 
     initGame(engine){
         const h = engine.canvas.height;
         const w = engine.canvas.width;
-        // Pick random Root and random Target Interval
-        this.rootIdx = Math.floor(Math.random() * 12);
+
         this.rootNote = NOTES[this.rootIdx];
-        
-        const targetIdx = Math.floor(Math.random() * this.labels.length);
-        this.targetLabel = this.labels[targetIdx];
-        this.targetST = this.st[targetIdx];
+        this.targetLabel = this.labels[this.targetIdx];
+        this.targetST = this.st[this.targetIdx];
 
         this.startTime = Date.now();
         this.showHints=false;

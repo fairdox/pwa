@@ -63,7 +63,8 @@ const KeyboardHelper = {
             color: color,
             callback,
             shape,
-            rotation
+            rotation,
+            clickTime: null
         };
     
         variant.buttons.push(newButton);
@@ -134,9 +135,12 @@ const KeyboardHelper = {
     checkClick(buttons, x, y) {
         //alert(`${x} ${y}`);
         const btn= buttons.find(b => x >= b.x && x <= (b.x + b.w) && y >= b.y && y <= (b.y + b.h));
-        if (btn && btn.callback && typeof btn.callback === 'function') {
-            btn.callback();
-            return null;
+        if (btn){
+            btn.clickTime=Date.now();
+            if (btn.callback && typeof btn.callback === 'function') {
+                btn.callback();
+                return null;
+            }
         }
         return btn;
     },
@@ -144,17 +148,36 @@ const KeyboardHelper = {
     // Standard rendering loop
     draw(ctx, buttons) {
         buttons.forEach(btn => {
-            ctx.fillStyle = btn.color;
-            ctx.strokeStyle = "#999";
-            if (btn.shape===SHAPE_ARROW)
-                this.drawArrow(ctx, btn.x, btn.y, btn.w, btn.rotation)
-            else
-                this.roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 8);
+            const isPressed = btn.clickTime && (Date.now() - btn.clickTime) < 100;
             
-            ctx.fillStyle = btn.color === "#333" ? "white" : "black";
+            // 1. Calculate displacement
+            const offset = isPressed ? 3 : 0; // Moves the button 3px down when clicked
+            const bx = btn.x;
+            const by = btn.y + offset;
+    
+            // 2. Draw Shadow (only when NOT pressed)
+            if (!isPressed) {
+                ctx.fillStyle = "rgba(0,0,0,0.4)";
+                this.roundRect(ctx, bx, by + 4, btn.w, btn.h, 8); // Subtle drop shadow
+            }
+    
+            // 3. Draw Main Button Body
+            ctx.fillStyle = isPressed ? "#222" : btn.color; // Darken slightly if pressed
+            ctx.strokeStyle = isPressed ? "#444" : "#999";
+            this.roundRect(ctx, bx, by, btn.w, btn.h, 8);
+    
+            // 4. Draw Text with Offset
+            ctx.fillStyle = isPressed ? "white" : (btn.color === "#333" ? "white" : "black");
             ctx.font = "bold 16px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText(btn.note, btn.x + btn.w/2, btn.y + btn.h/2 + 6);
+            
+            // Center the text + the offset so the label "sinks" with the button
+            ctx.fillText(btn.note, bx + btn.w/2, by + btn.h/2 + 6);
+    
+            // 5. Cleanup click state
+            if (btn.clickTime && (Date.now() - btn.clickTime) >= 100) {
+                btn.clickTime = null;
+            }
         });
     },
 

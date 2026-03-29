@@ -158,9 +158,9 @@
     </div>
 
 </div>
-<script src="variants.js?v=1.818"></script>
-<script src="scales.js?v=1.02"></script>
-<script src="keyhelper.js?v=1.02"></script>
+<script src="variants.js?v=1.819"></script>
+<script src="scales.js?v=1.03"></script>
+<script src="keyhelper.js?v=1.03"></script>
 
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -207,6 +207,7 @@ class AudioController {
         osc.stop(this.ctx.currentTime + 1.5);
     }
 }
+    
     
 class FretboardEngine {
     constructor(canvas) {
@@ -1198,6 +1199,7 @@ function switchGame(type) {
     game.viewWidthFactor=0.8;    
     game.hasFret=true;
     game.autoPauseDuration=10000;
+    if (game.variant) saveVariantState(game.variant);
     if (type === 'section' ) {
         game.variant = SectionVariant;
     }
@@ -1237,7 +1239,7 @@ function switchGame(type) {
     else if (type === 'scales1') {
         game.variant = ScalePathVariant;
         game.autoPauseDuration=3600000;
-        game.viewHeightFactor=0.9;
+        game.viewHeightFactor=0.95;
     }  
     
     game.calculateFrets() 

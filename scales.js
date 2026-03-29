@@ -10,10 +10,15 @@ const ScalePathVariant = {
     statKey: "SB1",
     
     init(engine) {
+        const h = engine.canvas.height;
+        const w = engine.canvas.width;
         this.buttons=[];
         KeyboardHelper.addFunctionKeys(engine,this);
+        this.changeScaleBtn=KeyboardHelper.addFunctionButton(engine, this, "xxx", w/2-100, h-90, "lightblue",
+                                         () => this.changeScale(engine),200,30,); 
         this.rootIdx=0;
         this.startFret=5;
+        this.scaleIdx=0;
         this.showHints=0;
         this.initGame(engine);        
     },
@@ -28,17 +33,27 @@ const ScalePathVariant = {
         this.startFret = (this.startFret + inc + len) % len;
         if (reset) this.initGame(engine);
     },
+    changeScale(engine){
+        const len = SCALES.length;
+        this.scaleIdx = (this.scaleIdx + 1 + len) % len;
+        this.initGame(engine);
+    },
     initGame(engine){
         const h = engine.canvas.height;
         const w = engine.canvas.width;
         //const scale = SCALES[Math.floor(Math.random() * SCALES.length)];
-        const scale = SCALES[0];
+        const scale = SCALES[this.scaleIdx];
 
         this.endFret = this.startFret + 3;         
         this.scaleLabel = scale.label;
         this.scaleST = scale.st;
         this.scaleFormula = scale.formula;
         this.rootNote = NOTES[this.rootIdx];
+        
+        KeyboardHelper.updateButtonAttribute(this.changeScaleBtn, { 
+            note: `${this.rootNote} ${this.scaleLabel}`
+        });
+        
         
         this.foundNotes = [];
         this.totalInBox = this.calculateTotalInBox();
@@ -49,9 +64,6 @@ const ScalePathVariant = {
         engine.tappedKeys.clear();
         engine.score = 0;
         engine.highlightFretRange(this.startFret, this.endFret, true);
-        engine.addLabel(`${this.rootNote} ${this.scaleLabel} (Frets ${this.startFret}-${this.endFret})`, { 
-            y: h-60, color: "gold", duration: -1 ,sizeStart:24.5
-        });
     },
 
     hints(engine){
@@ -109,8 +121,8 @@ const ScalePathVariant = {
 
         ctx.textAlign = "center";
         ctx.fillStyle = "white";
-        ctx.font = "bold 20px sans-serif";
-        ctx.fillText(`${this.foundNotes.length} / ${this.totalInBox} Notes Found`,
+        ctx.font = "bold 16px sans-serif";
+        ctx.fillText(`${this.foundNotes.length} / ${this.totalInBox} Notes Found (Frets ${this.startFret}-${this.endFret})`,
                      engine.canvas.width/2, engine.canvas.height-30);
         if (this.showHints>0){
             if (this.showHints==1)

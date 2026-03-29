@@ -54,17 +54,26 @@ const KeyboardHelper = {
                       callback=null, width=55, height=40,
                       shape=SHAPE_RECTANGLE, 
                       rotation=0) {
-        variant.buttons.push({
-                x: x,
-                y: y,
-                w: width,
-                h: height,
-                note: label,
-                color: color,
-                callback,
-                shape,
-                rotation
-            });
+        const newButton = {
+            x: x,
+            y: y,
+            w: width,
+            h: height,
+            note: label,
+            color: color,
+            callback,
+            shape,
+            rotation
+        };
+    
+        variant.buttons.push(newButton);
+        return newButton;
+    },
+    
+    updateButtonAttribute(button, attributes) {
+        if (button && typeof attributes === 'object') {
+            Object.assign(button, attributes);
+        }
     },
 
     addFunctionKeys(engine, variant){

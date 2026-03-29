@@ -7,6 +7,8 @@ self.addEventListener("install", event => {
         "./",
         "./index.html",
         "./variants.js",
+        "./scales.js",
+        "./keyhelper.js",
         "./manifest.json",
         "./motus.js",
         "./validation.js",

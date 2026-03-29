@@ -67,14 +67,14 @@
         .menu-items button {
             display: block;
             width: 100%;
-            padding: 12px;
-            margin: 8px 0;
+            padding: 8px;
+            margin: 4px 0;
             background: #333;
             color: #ddd;
             border: 1px solid #444;
             text-align: left;
             border-radius: 4px;
-            font-size: 16px;
+            font-size: 12px;
         }
         
         .menu-items button:hover {
@@ -126,6 +126,7 @@
         <button onclick="switchGame('chords')">Chord Builder</button>
         <button onclick="switchGame('SemSearch')">Semitone search</button>      
         <button onclick="switchGame('show')">Fretboard slideshow</button>
+        <button onclick="switchGame('scales1')">Scales</button>       
         <hr>
         <button id="optionsBtn" onclick="toggleMenu(false);toggleMenuPage(true);">Options...</button>
     </div>
@@ -158,12 +159,54 @@
 
 </div>
 <script src="variants.js?v=1.818"></script>
+<script src="scales.js?v=1.02"></script>
+<script src="keyhelper.js?v=1.02"></script>
+
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const stringBasePitches = [40, 45, 50, 55, 59, 64]; 
+const StringBasePitches = [40, 45, 50, 55, 59, 64]; 
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
 const MARKERS = [3, 5, 7, 9, 12];
 const ROYGBIV = [ "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8B00FF","#8B00FF" ];
+
+
+class AudioController {
+    constructor() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.enabled = false;
+    }
+
+    // Mobile browsers block audio until the user interacts
+    async resume() {
+        if (this.ctx.state === 'suspended') {
+            await this.ctx.resume();
+        }
+        this.enabled = true;
+    }
+
+    playNote(pitch) {
+        if (!this.enabled) return;
+
+        // Convert MIDI pitch to Frequency (Hz)
+        const freq = 440 * Math.pow(2, (pitch - 69) / 12);
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'triangle'; // Smoother than 'sawtooth', meatier than 'sine'
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+
+        // The "Pluck" Envelope
+        gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.5);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + 1.5);
+    }
+}
     
 class FretboardEngine {
     constructor(canvas) {
@@ -208,7 +251,8 @@ class FretboardEngine {
         this.lastTapY = null;
         this.tapCircleRadius = 0; // For a little "ripple" effect
         this.statKey= null; // begining of statistics key should be different for each game
-
+        this.audio = new AudioController();
+        this.HighlightFrets=null;
         
         // 3D effect needs https connection
         if (window.DeviceOrientationEvent) {
@@ -307,6 +351,7 @@ class FretboardEngine {
         this.isAutoPaused = false;
         this.lastTapTime = Date.now();
         this.labels =[];
+        this.HighlightFrets=null;
         if (!keepScore) this.score = 0;
         if (this.variant) {
             this.variant.init(this);
@@ -456,7 +501,9 @@ class FretboardEngine {
             
             // Initial "pop" scale animation (from previous step)
             let scale = l.size;
-            if (age < 500) scale = l.size*2.0 - ( age * l.stepSize) ;
+            if (age < 500) {
+                scale = l.sizeStart - ( age * l.stepSize) ;
+            }
     
             this.ctx.fillStyle = l.color;
             this.ctx.font = `bold ${scale}px sans-serif`;
@@ -479,6 +526,7 @@ class FretboardEngine {
             y = 18, 
             color = "green", 
             size = 24, 
+            sizeStart = 48,
             duration = 2,
             direction = 0,         // Degrees (0 up, 90 right, 180 down)
             speed = 0,             // px/sec
@@ -497,11 +545,12 @@ class FretboardEngine {
         );       
         // Convert direction (degrees) to a movement vector
         const rad = (direction - 90) * (Math.PI / 180); // Adjusting so 0 is Up
-        const stepSize = (size*2.0- size)/500.0;
+        const stepSize = (sizeStart - size)/500.0;
 
         const newLabel =({
             text, color, x, y, 
             size,
+            sizeStart,
             startTime: Date.now(),
             lastUpdate: Date.now(),
             duration: duration === -1 ? -1 : duration * 1000,
@@ -619,7 +668,38 @@ class FretboardEngine {
             }
         }
         ctx.restore();
-    }   
+    }
+
+    highlightFretRange(startFret, endFret, inverse = false){
+        this.HighlightFrets={startFret, endFret, inverse};
+    }
+    
+    drawHighlightFretRange() {
+        if (!this.HighlightFrets) return;
+        const ctx = this.ctx;
+        const startFret = this.HighlightFrets.startFret;
+        const endFret = this.HighlightFrets.endFret;
+
+        const yTop = startFret>0 ? 
+            this.fretPositions[startFret-1]:
+            this.fretPositions[0]-50;
+        const yBottom = this.fretPositions[endFret];
+        ctx.fillStyle = "rgba(255, 255, 255, 0.1 )"; // Soft highlight
+
+        const fbTop = this.fretPositions[0];
+        const fbBottom = this.fretPositions[12];
+
+        const xleft = this.getStringX(0)-10;
+        const w = this.getStringX(5)+10- xleft;
+        if (this.HighlightFrets.inverse) {
+            if (startFret>0) ctx.fillRect(xleft, fbTop, w, yTop- fbTop );
+            ctx.fillRect(xleft, yBottom, w, fbBottom - yBottom);
+        } else {
+            // Standard behavior: Draw the selection
+            ctx.fillRect(xleft, yTop, w, yBottom - yTop);
+        }
+    }
+    
     draw() {
         requestAnimationFrame(() => this.draw());
         if (this.isPaused) return;
@@ -701,7 +781,11 @@ class FretboardEngine {
             ctx.beginPath(); 
             ctx.moveTo(x, this.fretPositions[0]); 
             ctx.lineTo(x, this.fretPositions[12]+10); 
-            ctx.stroke();   
+            ctx.stroke();
+
+            // Highlight frets option
+            if (this.HighlightFrets) this.drawHighlightFretRange();
+            
             if (this.variant && this.variant.preRender) {
                 this.variant.preRender(this, fbHeight); 
             }
@@ -846,16 +930,16 @@ class FretboardEngine {
         return functionalMap[st] || "#FFFFFF";
     }
     
-    drawChordMap(rootNote, semitones, formula) {
+    drawChordMap(rootNote, semitones, formula, startFret=0 , endFret=12) {
         const rootPitch = NOTES.indexOf(rootNote);
 
         const size=16;
-        this.ctx.globalAlpha = 0.3;
+        
         this.ctx.font = `bold ${size}px sans-serif`;
         this.ctx.textAlign = "center";
         for (let s = 0; s < 6; s++) {
-            for (let f = 0; f <= 12; f++) { 
-                const currentPitch = stringBasePitches[s] + f;
+            for (let f = startFret; f <= endFret; f++) { 
+                const currentPitch = StringBasePitches[s] + f;
                 const relativeSemitone = (currentPitch - rootPitch) % 12;
                 
                 // Normalize for extensions (like #9 / 15 semitones)
@@ -867,13 +951,15 @@ class FretboardEngine {
                     const pos = this.getFretCenter(s, f);
                     const label = formula[matchIdx];
                     const color = this.getIntervalColor(rawDist);
+                    this.ctx.globalAlpha = 0.4;
                     this.ctx.fillStyle =color;
                     this.ctx.lineWidth = 1;          // Thickness of the circle outline
                     this.ctx.strokeStyle=color;
-                    this.ctx.beginPath(); this.ctx.arc(pos.x+8, pos.y, size/2+3, 0, Math.PI * 2);
-                    this.ctx.stroke();
-
-                    this.ctx.fillText(`${label}`, pos.x+8, pos.y+4);
+                    this.ctx.beginPath(); this.ctx.arc(pos.x, pos.y, size/2+4, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    this.ctx.globalAlpha = 1;
+                    this.ctx.fillStyle ="white";
+                    this.ctx.fillText(`${label}`, pos.x, pos.y+4);
 
                 }
             }
@@ -1147,12 +1233,20 @@ function switchGame(type) {
     else if (type === 'show') {
         game.variant = SlideShowVariant;
         game.autoPauseDuration=3600000;
-    }    game.calculateFrets() 
+    }    
+    else if (type === 'scales1') {
+        game.variant = ScalePathVariant;
+        game.autoPauseDuration=3600000;
+        game.viewHeightFactor=0.9;
+    }  
+    
+    game.calculateFrets() 
     toggleMenu(false); // Close the drawer after selection
     game.reset();
 }
 
 function toggleMenu(isOpen) {
+    game.audio.resume(); // Unlocks audio on first click
     const menu = document.getElementById('sideMenu');
     if (isOpen) {
         menu.classList.add('active');

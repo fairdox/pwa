@@ -349,176 +349,6 @@ const IntervalVariant = {
     }
 };
 
-const SHAPE_RECTANGLE=1;
-const SHAPE_ARROW=2;
-
-const KeyboardHelper = {
-    // Generate the two-row layout you provided
-    initButtons(engine, variant) {
-        variant.buttons = [];
-        const w = engine.canvas.width;
-        const h = engine.canvas.height;
-        
-        const bw = 48, bh = 48, gap = 8;
-        const totalWhiteKeys = 7;
-        const whiteRowWidth = (totalWhiteKeys * bw) + ((totalWhiteKeys - 1) * gap);
-        
-        // Start X for the white keys (centered)
-        const startXWhite = (w - whiteRowWidth) / 2;
-        const startYWhite = h - 120; // Bottom row
-        const startYBlack = startYWhite - (bh + gap); // Top row
-    
-        // 1. Define White Keys (C to B)
-        const whiteNotes =["C", "D", "E", "F", "G", "A", "B"] ;
-        
-        whiteNotes.forEach((note, i) => {
-            variant.buttons.push({
-                x: startXWhite + i * (bw + gap),
-                y: startYWhite,
-                w: bw, h: bh,
-                note: note,
-                color: "#bbb"
-            });
-        });
-        
-        // 2. Define Black Keys with Mode-aware labels
-        const blackKeys = [
-            { note: "C#", slot: 0.5 },
-            { note: "D#", slot: 1.5 },
-            { note: "F#", slot: 3.5 },
-            { note: "G#", slot: 4.5 },
-            { note: "A#", slot: 5.5 }
-        ];
-
-        blackKeys.forEach(bk => {
-            variant.buttons.push({
-                x: startXWhite + bk.slot * (bw + gap),
-                y: startYBlack,
-                w: bw, h: bh,
-                note: bk.note,
-                color: "#333"
-            });
-        });
-    },
-
-    addFunctionButton(engine, variant, label, x=10, y=270, color="#666",
-                      callback=null, width=55, height=40,
-                      shape=SHAPE_RECTANGLE, 
-                      rotation=0) {
-        variant.buttons.push({
-                x: x,
-                y: y,
-                w: width,
-                h: height,
-                note: label,
-                color: color,
-                callback,
-                shape,
-                rotation
-            });
-    },
-
-    initDynamicMasterPalette(engine, variant) {
-        variant.buttons = [];
-        const btnW = 50, btnH = 40, gap = 8;
-        const cols = 4;
-        
-        // Get all unique intervals from your specific CHORD_FORMULAS array
-        const masterList = getUniqueIntervals(CHORD_FORMULAS);
-    
-        const totalW = (cols * btnW) + ((cols - 1) * gap);
-        const startX = (engine.canvas.width - totalW) / 2;
-        const startY = engine.canvas.height - 220; // Move up if list gets long
-    
-        masterList.forEach((interval, i) => {
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            
-            // Visual logic: highlight intervals that are in the CURRENT chord
-            const isInCurrentChord = variant.formula.includes(interval);
-            
-            variant.buttons.push({
-                x: startX + col * (btnW + gap),
-                y: startY + row * (btnH + gap),
-                w: btnW,
-                h: btnH,
-                note: interval,
-                // If it's in the chord, give it a subtle border or different shade
-                color: interval === "1" ? "#cc0000" : (isInCurrentChord ? "#666" : "#333"),
-                borderColor: isInCurrentChord ? "gold" : "transparent"
-            });
-        });
-    },
-
-    // Hit detection for any variant using this helper
-    checkClick(buttons, x, y) {
-        //alert(`${x} ${y}`);
-        const btn= buttons.find(b => x >= b.x && x <= (b.x + b.w) && y >= b.y && y <= (b.y + b.h));
-        if (btn && btn.callback && typeof btn.callback === 'function') {
-            btn.callback();
-            return null;
-        }
-        return btn;
-    },
-
-    // Standard rendering loop
-    draw(ctx, buttons) {
-        buttons.forEach(btn => {
-            ctx.fillStyle = btn.color;
-            ctx.strokeStyle = "#999";
-            if (btn.shape===SHAPE_ARROW)
-                this.drawArrow(ctx, btn.x, btn.y, btn.w, btn.rotation)
-            else
-                this.roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 8);
-            
-            ctx.fillStyle = btn.color === "#333" ? "white" : "black";
-            ctx.font = "bold 16px sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillText(btn.note, btn.x + btn.w/2, btn.y + btn.h/2 + 6);
-        });
-    },
-
-    roundRect(ctx, x, y, width, height, radius, fill=true, stroke=true) {
-        ctx.beginPath();
-        ctx.moveTo(x + radius, y);
-        ctx.lineTo(x + width - radius, y);
-        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-        ctx.lineTo(x + width, y + height - radius);
-        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-        ctx.lineTo(x + radius, y + height);
-        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-        ctx.lineTo(x, y + radius);
-        ctx.quadraticCurveTo(x, y, x + radius, y);
-        ctx.closePath();
-        if (fill) ctx.fill();
-        if (stroke) ctx.stroke();
-    },
-
-    drawArrow(ctx, x, y, size, rotation=0, fill=true, stroke=true) {
-        ctx.save();
-        
-        // 1. Move to the center of where the button should be
-        ctx.translate(x, y);
-        
-        // 2. Rotate the entire coordinate system
-        ctx.rotate(rotation * Math.PI / 180);
-        
-        // 3. Define the triangle points relative to (0,0)
-        // We offset by half-size so the rotation happens around the center
-        const half = size / 2;
-        ctx.beginPath();
-        ctx.moveTo(0, -half);          // Top point (Tip)
-        ctx.lineTo(half, half);        // Bottom right
-        ctx.lineTo(-half, half);       // Bottom left
-        ctx.closePath();
-        
-        if (fill) ctx.fill();
-        if (stroke) ctx.stroke();
-        
-        ctx.restore(); // Reset translation/rotation for the next draw call
-    }
-};
-
 
 const SectionVariant = {
     sectionSeq: 0,
@@ -542,9 +372,9 @@ const SectionVariant = {
         if (this.sectionSeq<0) this.sectionSeq=this.sections.length-1;
         if (this.sectionSeq>this.sections.length-1) this.sectionSeq=0
         this.range = this.sections[this.sectionSeq];
-        if (reset) this.resetGame(engine);
+        if (reset) this.initGame(engine);
     },
-    resetGame(engine){
+    initGame(engine){
         const candidates = engine.getWorstCombos(5,this.targetNote);
         const selection = candidates[Math.floor(Math.random() * candidates.length)]; 
         this.targetNote = selection.note;
@@ -703,30 +533,27 @@ const ChordCompletionVariant = {
     },
 
     incrementRoot(engine,inc=1, reset=true,){
-        this.rootIdx+=inc;
-        if (this.rootIdx<0) this.rootIdx=11;
-        if (this.rootIdx>11) this.rootIdx=0
+        const len = NOTES.length;
+        this.rootIdx = (this.rootIdx + inc + len) % len;
         this.rootNote = NOTES[this.rootIdx];                
         //this.rootIdx = 5;
-        if (reset) this.resetGame(engine);
+        if (reset) this.initGame(engine);
     },
 
     incrementChord(engine,inc=1, reset=true){
-        this.chordIdx += inc;
-        if (this.chordIdx <0) this.chordIdx =CHORD_FORMULAS.length-1;
-        if (this.chordIdx > CHORD_FORMULAS.length-1) this.chordIdx =0;
+        const len = CHORD_FORMULAS.length;
+        this.chordIdx = (this.chordIdx + inc + len) % len;
         const type = CHORD_FORMULAS[this.chordIdx];
-        //const type = CHORD_FORMULAS[9];
         this.chordLabel = type.label;
 
         this.formula = type.formula;
         this.semitones = type.semitones;
         this.semitones=this.semitones.map(s => s % 12); // to normalize somitones that are > 12 
         
-        if (reset) this.resetGame(engine);
+        if (reset) this.initGame(engine);
     },
 
-    resetGame(engine){
+    initGame(engine){
         this.usedStrings = new Set(); // Track string indices
         
         this.completed = false;
@@ -745,21 +572,7 @@ const ChordCompletionVariant = {
     init(engine) {
         this.showHints = false;
         this.buttons=[];
-        const w = engine.canvas.width;
-        const h = engine.canvas.height;
-        const btnw = 24;
-        const btnh = 40;
-        KeyboardHelper.addFunctionButton(engine, this, "Hints", w/2-65, h-65, "#682", () => this.hints(engine)); 
-        KeyboardHelper.addFunctionButton(engine, this, "Clear", w/2, h-65, "#A82",  () => this.clear(engine));
-        KeyboardHelper.addFunctionButton(engine, this, "^", 15, h-280, "#682", 
-                                         () => this.incrementRoot(engine,-1), btnw, btnh); 
-        KeyboardHelper.addFunctionButton(engine, this, "v", 15, h-280+50, "#682", 
-                                         () => this.incrementRoot(engine,1), btnw, btnh); 
-        
-        KeyboardHelper.addFunctionButton(engine, this, "^", w-btnw-15, h-280, "#682", 
-                                         () => this.incrementChord(engine,-1), btnw, btnh);
-        KeyboardHelper.addFunctionButton(engine, this, "v", w-btnw-15, h-280+50, "#682", 
-                                         () => this.incrementChord(engine,1), btnw, btnh);        
+        KeyboardHelper.addFunctionKeys(engine,this);
         this.rootIdx=-1;
         this.chordIdx=-1;
         this.incrementRoot(engine,1,false);
@@ -771,9 +584,8 @@ const ChordCompletionVariant = {
 
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);     
         if (!noteName) return;
-    
-        
-        const currentPitch = stringBasePitches[sIdx] + f;
+           
+        const currentPitch = StringBasePitches[sIdx] + f;
                 
         const tappedIdx = NOTES.indexOf(noteName);
         const tappedSemitones = (tappedIdx - this.rootIdx + 12) % 12;
@@ -805,7 +617,6 @@ const ChordCompletionVariant = {
                 });
                 this.foundNotes[slotIdx] = noteName;
             }
-
 
             const tappedNotes = engine.tappedNoteSet(); 
             this.foundNotes = this.foundNotes.map(note => 
@@ -877,16 +688,10 @@ const IntervalSearchVariant = {
     label:"",
     statKey: "IS1",
     init(engine) {
-        const h = engine.canvas.height;
-        const w = engine.canvas.width;
         this.labels = ["2", "b3", "3", "4", "b5", "5", "#5", "6", "b7", "7", "9", "#9", "11", "#11",  "13"];
         this.st =     [  2,    3,   4,   5,    6,   7,    8,   9,   10,  11,  14,   15,   17,    18,   21 ];
         this.buttons=[];
-        const pos = engine.getFretCoordinates(0,11);
-        KeyboardHelper.addFunctionButton(engine, this, "Hints", 5, pos.y+30, "#682",
-                                         () => this.hints(engine),45,30,); 
-        KeyboardHelper.addFunctionButton(engine, this, "Next", w-5-45, pos.y+30, "#A82",
-                                         () => this.initGame(engine),45,30);
+        KeyboardHelper.addFunctionKeys(engine,this);
         this.initGame(engine);
     },
 
@@ -919,7 +724,7 @@ const IntervalSearchVariant = {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);     
         if (!name) return;
         // Calculate the semitone distance from the root
-        const tappedPitch = stringBasePitches[s] + f;
+        const tappedPitch = StringBasePitches[s] + f;
         const rootPitchBase = NOTES.indexOf(this.rootNote); 
         
         // Find distance and normalize to the target (handling octaves)
@@ -956,7 +761,7 @@ const SlideShowVariant = {
         this.currentString = Math.floor(Math.random() * 6);
         
         // 2. Determine Note Name
-        const pitch = stringBasePitches[this.currentString] + this.currentFret;
+        const pitch = StringBasePitches[this.currentString] + this.currentFret;
         this.noteName = NOTES[pitch % 12];
 
         // 3. Set State

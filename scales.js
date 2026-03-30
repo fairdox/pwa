@@ -13,9 +13,11 @@ const ScalePathVariant = {
         const h = engine.canvas.height;
         const w = engine.canvas.width;
         this.buttons=[];
-        KeyboardHelper.addFunctionKeys(engine,this);
+        const {btnopt1, btnhint} = KeyboardHelper.addFunctionKeys(engine,this);
         this.changeScaleBtn=KeyboardHelper.addFunctionButton(engine, this, "xxx", w/2-100, h-90, "lightblue",
                                          () => this.changeScale(engine),200,30,); 
+        this.btnopt1 = btnopt1;
+        this.btnopt1.hidden=true;
         this.rootIdx=0;
         this.startFret=0;
         this.scaleIdx=0;
@@ -30,8 +32,8 @@ const ScalePathVariant = {
     },
 
     incrementChord(engine,inc=1, reset=true){
-        const len = 10; // starting fret for the box from 0 to 8
-        this.startFret = (this.startFret + inc + len) % len;
+        const len = 11; // starting fret for the box from 0 to 10, (10 means all fretboard)
+        this.startFret = (this.startFret + inc + len) % len ;
         if (reset) this.initGame(engine);
     },
     changeScale(engine){
@@ -44,8 +46,13 @@ const ScalePathVariant = {
         const w = engine.canvas.width;
         //const scale = SCALES[Math.floor(Math.random() * SCALES.length)];
         const scale = SCALES[this.scaleIdx];
+        if (this.startFret==10){
+            this.startFret = 0;
+            this.endFret = 12;
+        }else{
+            this.endFret = this.startFret + 3;
+        }
 
-        this.endFret = this.startFret + 3;         
         this.scaleLabel = scale.label;
         this.scaleST = scale.st;
         this.scaleFormula = scale.formula;
@@ -54,7 +61,6 @@ const ScalePathVariant = {
         KeyboardHelper.updateButtonAttribute(this.changeScaleBtn, { 
             note: `${this.rootNote} ${this.scaleLabel}`
         });
-        
         
         this.foundNotes = [];
         this.totalInBox = this.calculateTotalInBox();
@@ -69,6 +75,11 @@ const ScalePathVariant = {
 
     hints(engine){
         this.showHints = ++this.showHints % 3;
+        if (this.showHints===0){
+            this.btnopt1.hidden=true;
+        } else{
+            this.btnopt1.hidden=false;
+        }
     },
 
     calculateTotalInBox() {
@@ -108,9 +119,10 @@ const ScalePathVariant = {
                 this.foundNotes.push(noteKey);
                 const formulaIdx = this.scaleST.indexOf(dist);
                 const intervalLabel = this.scaleFormula[formulaIdx];
+                const label = this.btnopt1.toggleState ? name: intervalLabel; 
                 
-                engine.processResult(true, { visualX: x, visualY: y, noteName: intervalLabel, 
-                                             stayOnChallenge: stay });
+                engine.processResult(true, { visualX: x, visualY: y, noteName: label, 
+                                             stayOnChallenge: stay , skipHistory: true});
             }
         } else {
             engine.processResult(false, { visualX: x, visualY: y, noteName: name, skipHistory: true });
@@ -125,13 +137,18 @@ const ScalePathVariant = {
         ctx.font = "bold 16px sans-serif";
         ctx.fillText(`${this.foundNotes.length} / ${this.totalInBox} Notes Found (Frets ${this.startFret}-${this.endFret})`,
                      engine.canvas.width/2, engine.canvas.height-30);
+        const drawNoteNames= this.btnopt1.toggleState;
         if (this.showHints>0){
             if (this.showHints==1)
                 engine.drawChordMap(this.rootNote, this.scaleST, this.scaleFormula ,
-                                    this.startFret , this.endFret);
+                                    this.startFret , this.endFret, false, drawNoteNames,this.foundNotes);
             else // show hints on the complete fretboard
-                engine.drawChordMap(this.rootNote, this.scaleST, this.scaleFormula);
+                engine.drawChordMap(this.rootNote, this.scaleST, this.scaleFormula,
+                                    0,12, false, drawNoteNames,this.foundNotes);
                 
+        }else{
+            engine.drawChordMap(this.rootNote, this.scaleST, this.scaleFormula,
+                                0,12, true, drawNoteNames,this.foundNotes);
         }
         KeyboardHelper.draw(engine.ctx, this.buttons);
     }

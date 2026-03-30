@@ -1,6 +1,3 @@
-const SHAPE_RECTANGLE=1;
-const SHAPE_ARROW=2;
-
 const KeyboardHelper = {
     // Generate the two-row layout you provided
     initButtons(engine, variant) {
@@ -26,7 +23,8 @@ const KeyboardHelper = {
                 y: startYWhite,
                 w: bw, h: bh,
                 note: note,
-                color: "#bbb"
+                color: "#bbb",
+                toggleState: null,
             });
         });
         
@@ -45,15 +43,14 @@ const KeyboardHelper = {
                 y: startYBlack,
                 w: bw, h: bh,
                 note: bk.note,
-                color: "#333"
+                color: "#333",
+                toggleState: null,
             });
         });
     },
 
     addFunctionButton(engine, variant, label, x=10, y=270, color="#666",
-                      callback=null, width=55, height=40,
-                      shape=SHAPE_RECTANGLE, 
-                      rotation=0) {
+                      callback=null, width=55, height=40, toggleState=null) {
         const newButton = {
             x: x,
             y: y,
@@ -62,9 +59,9 @@ const KeyboardHelper = {
             note: label,
             color: color,
             callback,
-            shape,
-            rotation,
-            clickTime: null
+            toggleState,
+            clickTime: null,
+            hidden: false,
         };
     
         variant.buttons.push(newButton);
@@ -82,21 +79,31 @@ const KeyboardHelper = {
         const w = engine.canvas.width;
         const btnw = 24;
         const btnh = 40;
-        const pos = engine.getFretCoordinates(0,11);
-        KeyboardHelper.addFunctionButton(engine, variant, "Hints", 5, pos.y+30, "#682",
-                                         () => variant.hints(engine),45,30,); 
-        KeyboardHelper.addFunctionButton(engine, variant, "Clear", w-5-45, pos.y+30, "#A82",
+        let pos = engine.getFretCoordinates(0,11);
+
+        
+        const btnopt1=KeyboardHelper.addFunctionButton(engine, variant, "1|A", 5, pos.y+30, "#682",
+                                         null,45,30,false);
+        btnopt1.hidden=true;
+        
+        pos = engine.getFretCoordinates(0,9);
+        const btnopt2=KeyboardHelper.addFunctionButton(engine, variant, "Hints", 5, pos.y+30, "#682",
+                                         () => variant.hints(engine),45,30,false); 
+        pos = engine.getFretCoordinates(0,9);
+        const btnopt3=KeyboardHelper.addFunctionButton(engine, variant, "Clear", w-5-45, pos.y+30, "#A82",
                                          () => variant.initGame(engine),45,30);
 
-        this.addFunctionButton(engine, variant, "^", 15, h-280, "#682", 
+        pos = engine.getFretCoordinates(0,5);
+        this.addFunctionButton(engine, variant, "^", 15, pos.y, "#682", 
                                          () => variant.incrementRoot(engine,-1), btnw, btnh); 
-        this.addFunctionButton(engine, variant, "v", 15, h-280+50, "#682", 
+        this.addFunctionButton(engine, variant, "v", 15, pos.y+50, "#682", 
                                          () => variant.incrementRoot(engine,1), btnw, btnh); 
         
-        this.addFunctionButton(engine, variant, "^", w-btnw-15, h-280, "#682", 
+        this.addFunctionButton(engine, variant, "^", w-btnw-15, pos.y, "#682", 
                                          () => variant.incrementChord(engine,-1), btnw, btnh);
-        this.addFunctionButton(engine, variant, "v", w-btnw-15, h-280+50, "#682", 
+        this.addFunctionButton(engine, variant, "v", w-btnw-15, pos.y+50, "#682", 
                                          () => variant.incrementChord(engine,1), btnw, btnh);  
+        return {btnopt1,btnopt2};
     },
 
     initDynamicMasterPalette(engine, variant) {
@@ -134,9 +141,12 @@ const KeyboardHelper = {
     // Hit detection for any variant using this helper
     checkClick(buttons, x, y) {
         //alert(`${x} ${y}`);
-        const btn= buttons.find(b => x >= b.x && x <= (b.x + b.w) && y >= b.y && y <= (b.y + b.h));
+        const btn= buttons.find(b => x >= b.x && x <= (b.x + b.w) && y >= b.y && y <= (b.y + b.h) && !b.hidden);
         if (btn){
             btn.clickTime=Date.now();
+            if (btn.toggleState!==null){
+                btn.toggleState = !btn.toggleState;
+            }
             if (btn.callback && typeof btn.callback === 'function') {
                 btn.callback();
                 return null;
@@ -148,6 +158,7 @@ const KeyboardHelper = {
     // Standard rendering loop
     draw(ctx, buttons) {
         buttons.forEach(btn => {
+            if (btn.hidden) return; 
             const isPressed = btn.clickTime && (Date.now() - btn.clickTime) < 100;
             
             // 1. Calculate displacement
@@ -163,6 +174,9 @@ const KeyboardHelper = {
     
             // 3. Draw Main Button Body
             ctx.fillStyle = isPressed ? "#222" : btn.color; // Darken slightly if pressed
+            if (btn.toggleState!==null){
+                ctx.fillStyle = btn.toggleState ? btn.color : "#555";
+            }
             ctx.strokeStyle = isPressed ? "#444" : "#999";
             this.roundRect(ctx, bx, by, btn.w, btn.h, 8);
     
@@ -197,28 +211,5 @@ const KeyboardHelper = {
         if (stroke) ctx.stroke();
     },
 
-    drawArrow(ctx, x, y, size, rotation=0, fill=true, stroke=true) {
-        ctx.save();
-        
-        // 1. Move to the center of where the button should be
-        ctx.translate(x, y);
-        
-        // 2. Rotate the entire coordinate system
-        ctx.rotate(rotation * Math.PI / 180);
-        
-        // 3. Define the triangle points relative to (0,0)
-        // We offset by half-size so the rotation happens around the center
-        const half = size / 2;
-        ctx.beginPath();
-        ctx.moveTo(0, -half);          // Top point (Tip)
-        ctx.lineTo(half, half);        // Bottom right
-        ctx.lineTo(-half, half);       // Bottom left
-        ctx.closePath();
-        
-        if (fill) ctx.fill();
-        if (stroke) ctx.stroke();
-        
-        ctx.restore(); // Reset translation/rotation for the next draw call
-    }
 };
 

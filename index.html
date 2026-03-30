@@ -931,7 +931,7 @@ class FretboardEngine {
         return functionalMap[st] || "#FFFFFF";
     }
     
-    drawChordMap(rootNote, semitones, formula, startFret=0 , endFret=12) {
+    drawChordMap(rootNote, semitones, formula, startFret=0 , endFret=12, drawTappedOnly=false, drawNoteNames=false, tappedList=[]) {
         const rootPitch = NOTES.indexOf(rootNote);
 
         const size=16;
@@ -942,27 +942,33 @@ class FretboardEngine {
             for (let f = startFret; f <= endFret; f++) { 
                 const currentPitch = StringBasePitches[s] + f;
                 const relativeSemitone = (currentPitch - rootPitch) % 12;
+                const noteName = NOTES[currentPitch % 12];
                 
                 // Normalize for extensions (like #9 / 15 semitones)
                 // We check both the octave-reduced and the raw semitone
                 const rawDist = currentPitch - rootPitch;
                 const matchIdx = semitones.findIndex(st => st === rawDist || (st % 12 === relativeSemitone));
-    
+                const noteKey = `${s}-${f}`;                   
+                const tapped = tappedList.includes(noteKey);
                 if (matchIdx !== -1) {
                     const pos = this.getFretCenter(s, f);
-                    const label = formula[matchIdx];
+                    let label = drawNoteNames ? noteName : formula[matchIdx];
                     const color = this.getIntervalColor(rawDist);
-                    this.ctx.globalAlpha = 0.4;
-                    this.ctx.fillStyle =color;
-                    this.ctx.lineWidth = 1;          // Thickness of the circle outline
-                    this.ctx.strokeStyle=color;
-                    this.ctx.beginPath(); this.ctx.arc(pos.x, pos.y, size/2+4, 0, Math.PI * 2);
-                    this.ctx.fill();
-                    this.ctx.globalAlpha = 1;
-                    this.ctx.fillStyle ="white";
-                    this.ctx.fillText(`${label}`, pos.x, pos.y+4);
+
+                    if (tapped || !drawTappedOnly){
+                        this.ctx.fillStyle =color;
+                        this.ctx.globalAlpha = tapped ? 0.8: 0.4;
+                        this.ctx.lineWidth = 1;          // Thickness of the circle outline
+                        this.ctx.strokeStyle=color;
+                        this.ctx.beginPath(); this.ctx.arc(pos.x, pos.y, size/2+4, 0, Math.PI * 2);
+                        this.ctx.fill();
+                        this.ctx.globalAlpha = 1;
+                        this.ctx.fillStyle ="white";
+                        this.ctx.fillText(`${label}`, pos.x, pos.y+4);
+                    }
 
                 }
+
             }
         }
         this.ctx.globalAlpha = 1;

@@ -576,21 +576,25 @@ const ChordCompletionVariant = {
     incrementRoot(engine,inc=1, reset=true,){
         const len = NOTES.length;
         this.rootIdx = (this.rootIdx + inc + len) % len;
-        this.rootNote = NOTES[this.rootIdx];                
+        this.rootNote = NOTES[this.rootIdx];  
+        this.rootNoteLabel.text = this.rootNote ;
         //this.rootIdx = 5;
         if (reset) this.initGame(engine);
     },
 
     incrementChord(engine,inc=1, reset=true){
+        const w = engine.canvas.width;
+        const h = engine.canvas.height;
         const len = CHORD_FORMULAS.length;
         this.chordIdx = (this.chordIdx + inc + len) % len;
         const type = CHORD_FORMULAS[this.chordIdx];
-        this.chordLabel = type.label;
-
+        this.chordLabel.text = ""; // chord name too long for vertical arrow space
+        const pos = engine.getFretCoordinates(0,12);
+        engine.addLabel(`${type.label}`,
+                        { color:"#666", duration: -1, size:25, x:w/2, y:pos.y+30});
         this.formula = type.formula;
         this.semitones = type.semitones;
         this.semitones=this.semitones.map(s => s % 12); // to normalize somitones that are > 12 
-        
         if (reset) this.initGame(engine);
     },
 
@@ -616,7 +620,9 @@ const ChordCompletionVariant = {
         restoreVariantState(this);
         this.showHints = false;
         this.buttons=[];
-        KeyboardHelper.addFunctionKeys(engine,this);
+        const objects = KeyboardHelper.addFunctionKeys(engine,this);
+        this.rootNoteLabel = objects.label1;
+        this.chordLabel = objects.label2;
         this.incrementRoot(engine,0,false);
         this.incrementChord(engine,0,true);
         engine.addLabel("Use arrows to change chords", {color:"green", size:16, duration:-1});
@@ -685,11 +691,6 @@ const ChordCompletionVariant = {
         const h = engine.canvas.height;
 
         const bottom =engine.getFretCoordinates(0,12);
-        // 1. Draw Chord Header
-        ctx.textAlign = "center";
-        ctx.fillStyle = "white";
-        ctx.font = "bold 24px sans-serif";
-        ctx.fillText(`${this.rootNote} ${this.chordLabel}`, w / 2, bottom.y+40);
 
         // 2. Draw Progress Squares
         const sqSize = 50, gap = 10;

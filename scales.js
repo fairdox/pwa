@@ -13,12 +13,23 @@ const ScalePathVariant = {
         const h = engine.canvas.height;
         const w = engine.canvas.width;
         this.buttons=[];
-        const {btnopt1, btnhint} = KeyboardHelper.addFunctionKeys(engine,this);
-        this.changeScaleBtn=KeyboardHelper.addFunctionButton(engine, this, "xxx", w/2-100, h-90, "lightblue",
-                                         () => this.changeScale(engine),200,30,); 
-        this.btnopt1 = btnopt1;
+        const objects = KeyboardHelper.addFunctionKeys(engine,this);
+        let pos = engine.getFretCoordinates(0,12);
+
+        const kobj=KeyboardHelper.addArrowKeys(engine,this,
+                                    {x:w/2, y:pos.y+30, horizontal: true,
+                                     btnh: 25, btnw: 40,
+                                     fct1: ()=>  this.incrementScale(engine,+1),
+                                     fct2: ()=>  this.incrementScale(engine,-1),
+                                    });
+        this.scaleLabel = kobj.label;
+
+        this.btnopt1 = objects.btnopt1;
         this.btnopt1.hidden=true;
+        this.rootNoteLabel = objects.label1;
+        this.fretBoxLabel = objects.label2;
         this.rootIdx=0;
+        this.selectedTopFret=0;
         this.startFret=0;
         this.scaleIdx=0;
         restoreVariantState(this);
@@ -33,12 +44,12 @@ const ScalePathVariant = {
 
     incrementChord(engine,inc=1, reset=true){
         const len = 11; // starting fret for the box from 0 to 10, (10 means all fretboard)
-        this.startFret = (this.startFret + inc + len) % len ;
+        this.selectedTopFret = (this.selectedTopFret + inc + len) % len ;
         if (reset) this.initGame(engine);
     },
-    changeScale(engine){
+    incrementScale(engine,inc=1, reset=true){
         const len = SCALES.length;
-        this.scaleIdx = (this.scaleIdx + 1 + len) % len;
+        this.scaleIdx = (this.scaleIdx + inc + len) % len;
         this.initGame(engine);
     },
     initGame(engine){
@@ -46,21 +57,20 @@ const ScalePathVariant = {
         const w = engine.canvas.width;
         //const scale = SCALES[Math.floor(Math.random() * SCALES.length)];
         const scale = SCALES[this.scaleIdx];
-        if (this.startFret==10){
+        if (this.selectedTopFret==10){
             this.startFret = 0;
             this.endFret = 12;
         }else{
-            this.endFret = this.startFret + 3;
+            this.startFret = this.selectedTopFret;
+            this.endFret = this.selectedTopFret + 3;
         }
 
-        this.scaleLabel = scale.label;
         this.scaleST = scale.st;
         this.scaleFormula = scale.formula;
         this.rootNote = NOTES[this.rootIdx];
-        
-        KeyboardHelper.updateButtonAttribute(this.changeScaleBtn, { 
-            note: `${this.rootNote} ${this.scaleLabel}`
-        });
+        this.rootNoteLabel.text= this.rootNote;
+        this.fretBoxLabel.text=`[${this.startFret}-${this.endFret}]`;
+        this.scaleLabel.text= scale.label;
         
         this.foundNotes = [];
         this.totalInBox = this.calculateTotalInBox();
@@ -131,12 +141,7 @@ const ScalePathVariant = {
 
     preRender(engine) {
         const ctx = engine.ctx;
-
-        ctx.textAlign = "center";
-        ctx.fillStyle = "white";
-        ctx.font = "bold 16px sans-serif";
-        ctx.fillText(`${this.foundNotes.length} / ${this.totalInBox} Notes Found (Frets ${this.startFret}-${this.endFret})`,
-                     engine.canvas.width/2, engine.canvas.height-30);
+        this.label=`${this.foundNotes.length} / ${this.totalInBox} Notes Found`;
         const drawNoteNames= this.btnopt1.toggleState;
         if (this.showHints>0){
             if (this.showHints==1)

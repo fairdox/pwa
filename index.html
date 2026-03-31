@@ -158,9 +158,9 @@
     </div>
 
 </div>
-<script src="variants.js?v=1.819"></script>
-<script src="scales.js?v=1.03"></script>
-<script src="keyhelper.js?v=1.03"></script>
+<script src="variants.js?v=1.820"></script>
+<script src="scales.js?v=1.04"></script>
+<script src="keyhelper.js?v=1.05"></script>
 
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -571,6 +571,7 @@ class FretboardEngine {
         } else {
             this.labels.push(newLabel);
         }
+        return newLabel;
     }
 
     getSectionCenterY(startFret, endFret) {

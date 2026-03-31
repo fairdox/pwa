@@ -74,14 +74,60 @@ const KeyboardHelper = {
         }
     },
 
-    addFunctionKeys(engine, variant){
+    addArrowKeys(engine, variant, options = {}) {
+        const { 
+            x = engine.canvas.width / 2, 
+            y = 18, 
+            color = "green", 
+            size = 24, 
+            horizontal = false,    // arrows on the same y with label in between
+            btnw = 25,
+            btnh = 43,
+            vgap = 5,
+            hgap = 10,
+            labelWidth = 200,
+            labelHeight = 30,
+            fct1 = null,
+            fct2 = null,
+        } = options;
+        
         const h = engine.canvas.height;
         const w = engine.canvas.width;
-        const btnw = 24;
-        const btnh = 40;
+        let x1=0,x2=0;xlbl=0;
+        let y1=0,y2=0;ylbl=0;
+        if (horizontal){
+            x1=x-hgap-(labelWidth/2)-btnw;
+            x2=x+hgap+(labelWidth/2)+hgap;
+            y1=y;
+            y2=y;
+            xlbl=x;
+            ylbl=y1+(labelHeight/2);
+        }else{
+            x1=x;
+            x2=x1;
+            y1=y;
+            y2=y+btnh+vgap+labelHeight+vgap;
+            xlbl=x+(btnw/2);
+            ylbl=y1+btnh+vgap+(labelHeight/2);
+        }
+
+        this.addFunctionButton(engine, variant, "^", x1, y1, "#555", fct1, btnw, btnh); 
+        const label=engine.addLabel("xxxxxx",
+                    { color:"#999", duration: -1, size:20, x:xlbl, y:ylbl});
+        
+        this.addFunctionButton(engine, variant, "v", x2, y2, "#555", fct2, btnw, btnh); 
+
+        return {label};
+    },
+
+    addFunctionKeys(engine, variant){
+        const btnw = 25;
+        const h = engine.canvas.height;
+        const w = engine.canvas.width;
+ 
+        const labelWidth = 60;
         let pos = engine.getFretCoordinates(0,11);
 
-        
         const btnopt1=KeyboardHelper.addFunctionButton(engine, variant, "1|A", 5, pos.y+30, "#682",
                                          null,45,30,false);
         btnopt1.hidden=true;
@@ -94,16 +140,20 @@ const KeyboardHelper = {
                                          () => variant.initGame(engine),45,30);
 
         pos = engine.getFretCoordinates(0,5);
-        this.addFunctionButton(engine, variant, "^", 15, pos.y, "#682", 
-                                         () => variant.incrementRoot(engine,-1), btnw, btnh); 
-        this.addFunctionButton(engine, variant, "v", 15, pos.y+50, "#682", 
-                                         () => variant.incrementRoot(engine,1), btnw, btnh); 
-        
-        this.addFunctionButton(engine, variant, "^", w-btnw-15, pos.y, "#682", 
-                                         () => variant.incrementChord(engine,-1), btnw, btnh);
-        this.addFunctionButton(engine, variant, "v", w-btnw-15, pos.y+50, "#682", 
-                                         () => variant.incrementChord(engine,1), btnw, btnh);  
-        return {btnopt1,btnopt2};
+        const arrowsA=KeyboardHelper.addArrowKeys(engine,variant,
+                                    {x:15, y:pos.y, btnw: btnw,
+                                     fct1: ()=>  variant.incrementRoot(engine,+1),
+                                     fct2: ()=>  variant.incrementRoot(engine,-1),
+                                    });
+        const label1 = arrowsA.label;
+            
+        const arrowsB=KeyboardHelper.addArrowKeys(engine,variant,
+                                    {x:w-btnw-15, y:pos.y, btnw: btnw,
+                                     fct1: ()=>  variant.incrementChord(engine,-1),
+                                     fct2: ()=>  variant.incrementChord(engine,+1),
+                                    });
+        const label2 = arrowsB.label;
+        return {btnopt1,btnopt2,label1 ,label2};
     },
 
     initDynamicMasterPalette(engine, variant) {

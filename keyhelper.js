@@ -4,14 +4,17 @@ const KeyboardHelper = {
         variant.buttons = [];
         const w = engine.canvas.width;
         const h = engine.canvas.height;
+        const bottom_y = h*0.90;
+
+        const uiprop = engine.uiprop;
         
-        const bw = 48, bh = 48, gap = 8;
+        const bw = uiprop.btnW, bh = uiprop.btnH, gap = uiprop.btnGap;
         const totalWhiteKeys = 7;
         const whiteRowWidth = (totalWhiteKeys * bw) + ((totalWhiteKeys - 1) * gap);
         
         // Start X for the white keys (centered)
         const startXWhite = (w - whiteRowWidth) / 2;
-        const startYWhite = h - 120; // Bottom row
+        const startYWhite = bottom_y-bh; // Bottom row y
         const startYBlack = startYWhite - (bh + gap); // Top row
     
         // 1. Define White Keys (C to B)
@@ -49,13 +52,14 @@ const KeyboardHelper = {
         });
     },
 
-    addFunctionButton(engine, variant, label, x=10, y=270, color="#666",
-                      callback=null, width=55, height=40, toggleState=null) {
+    addFunctionButton(engine, variant, label, x=0, y=0, color="#666",
+                      callback=null, toggleState=null,width, height) {
+        const uiprop = engine.uiprop;
         const newButton = {
             x: x,
             y: y,
-            w: width,
-            h: height,
+            w: width === undefined ? uiprop.fctbtnW : width,
+            h: height === undefined ? uiprop.fctbtnH : height,
             note: label,
             color: color,
             callback,
@@ -63,7 +67,7 @@ const KeyboardHelper = {
             clickTime: null,
             hidden: false,
         };
-    
+
         variant.buttons.push(newButton);
         return newButton;
     },
@@ -75,16 +79,17 @@ const KeyboardHelper = {
     },
 
     addArrowKeys(engine, variant, options = {}) {
+        const uiprop = engine.uiprop;
         const { 
             x = engine.canvas.width / 2, 
             y = 18, 
             color = "green", 
             size = 24, 
             horizontal = false,    // arrows on the same y with label in between
-            btnw = 25,
-            btnh = 43,
-            vgap = 5,
-            hgap = 10,
+            btnw = uiprop.arrowbtnw,
+            btnh = uiprop.arrowbtnh,
+            vgap = uiprop.arrowvgap,
+            hgap = uiprop.arrowhgap,
             labelWidth = 200,
             labelHeight = 30,
             fct1 = null,
@@ -111,44 +116,47 @@ const KeyboardHelper = {
             ylbl=y1+btnh+vgap+(labelHeight/2);
         }
 
-        this.addFunctionButton(engine, variant, "^", x1, y1, "#555", fct1, btnw, btnh); 
+        this.addFunctionButton(engine, variant, "^", x1, y1, "#555", fct1, null, btnw, btnh); 
         const label=engine.addLabel("xxxxxx",
-                    { color:"#999", duration: -1, size:20, x:xlbl, y:ylbl});
+                    { color:"#999", duration: -1, size:uiprop.arrowfntsize, x:xlbl, y:ylbl});
         
-        this.addFunctionButton(engine, variant, "v", x2, y2, "#555", fct2, btnw, btnh); 
+        this.addFunctionButton(engine, variant, "v", x2, y2, "#555", fct2, null, btnw, btnh); 
 
         return {label};
     },
 
     addFunctionKeys(engine, variant){
-        const btnw = 25;
         const h = engine.canvas.height;
         const w = engine.canvas.width;
  
         const labelWidth = 60;
         let pos = engine.getFretCoordinates(0,11);
+        const pad = engine.uiprop.sidePadding;
+        const btnw = engine.uiprop.arrowbtnw;
+        const lpad = pad/2;
+        const rpad = pad + engine.uiprop.fctbtnW;
 
-        const btnopt1=KeyboardHelper.addFunctionButton(engine, variant, "1|A", 5, pos.y+30, "#682",
-                                         null,45,30,false);
+        const btnopt1=KeyboardHelper.addFunctionButton(engine, variant, "1|A", lpad, pos.y, "#682",
+                                         null,false);
         btnopt1.hidden=true;
         
         pos = engine.getFretCoordinates(0,9);
-        const btnopt2=KeyboardHelper.addFunctionButton(engine, variant, "Hints", 5, pos.y+30, "#682",
-                                         () => variant.hints(engine),45,30,false); 
+        const btnopt2=KeyboardHelper.addFunctionButton(engine, variant, "Hints", lpad, pos.y, "#682",
+                                         () => variant.hints(engine),false); 
         pos = engine.getFretCoordinates(0,9);
-        const btnopt3=KeyboardHelper.addFunctionButton(engine, variant, "Clear", w-5-45, pos.y+30, "#A82",
-                                         () => variant.initGame(engine),45,30);
+        const btnopt3=KeyboardHelper.addFunctionButton(engine, variant, "Clear", w-rpad, pos.y, "#A82",
+                                         () => variant.initGame(engine));
 
         pos = engine.getFretCoordinates(0,5);
         const arrowsA=KeyboardHelper.addArrowKeys(engine,variant,
-                                    {x:15, y:pos.y, btnw: btnw,
+                                    {x:pad, y:pos.y, 
                                      fct1: ()=>  variant.incrementRoot(engine,+1),
                                      fct2: ()=>  variant.incrementRoot(engine,-1),
                                     });
         const label1 = arrowsA.label;
             
         const arrowsB=KeyboardHelper.addArrowKeys(engine,variant,
-                                    {x:w-btnw-15, y:pos.y, btnw: btnw,
+                                    {x:w-pad-btnw, y:pos.y, 
                                      fct1: ()=>  variant.incrementChord(engine,-1),
                                      fct2: ()=>  variant.incrementChord(engine,+1),
                                     });
@@ -158,15 +166,20 @@ const KeyboardHelper = {
 
     initDynamicMasterPalette(engine, variant) {
         variant.buttons = [];
-        const btnW = 50, btnH = 40, gap = 8;
-        const cols = 4;
+        const uiprop = engine.uiprop;
+        const btnW = uiprop.btnW,
+            btnH = uiprop.btnH,
+            gap = uiprop.btnGap;
+
+        const cols = 5;
         
         // Get all unique intervals from your specific CHORD_FORMULAS array
         const masterList = getUniqueIntervals(CHORD_FORMULAS);
-    
+        const rows=Math.ceil(masterList.length/cols) ;
         const totalW = (cols * btnW) + ((cols - 1) * gap);
+        const totalH = (rows * btnH) + (rows*gap)  ; 
         const startX = (engine.canvas.width - totalW) / 2;
-        const startY = engine.canvas.height - 220; // Move up if list gets long
+        const startY = engine.canvas.height - totalH ; // Move up if list gets long
     
         masterList.forEach((interval, i) => {
             const col = i % cols;
@@ -206,7 +219,9 @@ const KeyboardHelper = {
     },
 
     // Standard rendering loop
-    draw(ctx, buttons) {
+    draw(engine, buttons) {
+        const ctx=engine.ctx; 
+        ctx.font = `bold ${engine.uiprop.fctfntsize}px sans-serif`;
         buttons.forEach(btn => {
             if (btn.hidden) return; 
             const isPressed = btn.clickTime && (Date.now() - btn.clickTime) < 100;
@@ -232,7 +247,7 @@ const KeyboardHelper = {
     
             // 4. Draw Text with Offset
             ctx.fillStyle = isPressed ? "white" : (btn.color === "#333" ? "white" : "black");
-            ctx.font = "bold 16px sans-serif";
+
             ctx.textAlign = "center";
             
             // Center the text + the offset so the label "sinks" with the button

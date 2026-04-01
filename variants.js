@@ -154,7 +154,7 @@ const ExtremeAccidentalVariant = {
             }
         }
 
-        KeyboardHelper.draw(ctx, this.buttons);
+        KeyboardHelper.draw(engine, this.buttons);
     }
 };
 
@@ -203,7 +203,7 @@ const KeyboardVariant = {
         
     },
     render(engine) {
-        KeyboardHelper.draw(engine.ctx, this.buttons);
+        KeyboardHelper.draw(engine, this.buttons);
         if (!engine.gameActive) return;
         const coords = engine.getFretCoordinates(this.targetString, this.targetFret);
         engine.drawNode(coords.x, coords.y, "?", "gold", 12, 1);
@@ -261,8 +261,7 @@ function getUniqueIntervals(formulas) {
 const IntervalVariant = {
     label:"",
     statKey: "W1",
-    mode: 0, 
-
+    mode: 0,
     init(engine) {
         this.rootIdx = Math.floor(Math.random() * 12);
         this.rootNote = NOTES[this.rootIdx];
@@ -272,26 +271,26 @@ const IntervalVariant = {
         this.formula = type.formula;
         this.semitones = type.semitones;
 
+        const w = engine.canvas.width;
+        const h = engine.canvas.height;
+        const pad = engine.uiprop.padding;
         if (this.mode === 1) {
             KeyboardHelper.initDynamicMasterPalette(engine, this);
         } else {
             KeyboardHelper.initButtons(engine, this);
         }
-
-        const w = engine.canvas.width;
-        const h = engine.canvas.height;
-        KeyboardHelper.addFunctionButton(engine, this, "1|A",  w/2-25, h-265, "#682",()=> this.switchMode(engine));
+        KeyboardHelper.addFunctionButton(engine, this, "1|A",  pad, h*1/3, "#682",
+                                         ()=> this.switchMode(engine));
 
         this.targetIdx = Math.floor(Math.random() * (this.formula.length - 1)) + 1;
         this.targetInterval = this.formula[this.targetIdx]; 
         this.targetNoteName = NOTES[(this.rootIdx + this.semitones[this.targetIdx]) % 12];
-
+        
         const prompt = this.mode === 0 ? 
             `Find the missing note` : 
             `What is the role of ${this.targetNoteName}?`;
-        
         engine.addLabel(prompt, { duration: -1, y: 80 });
-
+        
         this.userAttempt = null;
         this.startTime = Date.now();
     },
@@ -334,10 +333,11 @@ const IntervalVariant = {
         const ctx = engine.ctx;
         const w = engine.canvas.width;
         const h = engine.canvas.height;
-        const sqSize = 55, gap = 10;
+        const uiprop = engine.uiprop;
+        const sqSize = uiprop.scale*55, gap = uiprop.scale*10;
         const totalW = (this.formula.length * sqSize) + ((this.formula.length - 1) * gap);
         const startX = (w - totalW) / 2;
-        const centerY = h / 2 - 40;
+        const centerY = h * 1/3;
 
         ctx.textAlign = "center";
         ctx.fillStyle = "white";
@@ -386,7 +386,7 @@ const IntervalVariant = {
             ctx.fillText(msg, w / 2, centerY + sqSize + 40);
         }
 
-        KeyboardHelper.draw(ctx, this.buttons);
+        KeyboardHelper.draw(engine, this.buttons);
     }
 };
 
@@ -403,7 +403,7 @@ const SectionVariant = {
         const btnw = 75;
         const btnh = 33;
         KeyboardHelper.addFunctionButton(engine, this, "Section", w-btnw-5, h-btnh-10, "#682",
-                                         () => this.incrementSection(engine,1),btnw, btnh);
+                                         () => this.incrementSection(engine,1),null,btnw, btnh);
 
         this.incrementSection(engine,0);
     },
@@ -475,7 +475,7 @@ const SectionVariant = {
                         "rgba(149, 59, 159, 0.3)",
                         92,
                         0.3);
-        KeyboardHelper.draw(ctx, this.buttons);
+        KeyboardHelper.draw(engine, this.buttons);
     },
 
     calculateNeeded() {
@@ -722,10 +722,11 @@ const ChordCompletionVariant = {
                 ctx.fillText(foundNote, x + sqSize/2, sqY + sqSize/2 + 7);
             }
         });
-        KeyboardHelper.draw(ctx, this.buttons);
+        KeyboardHelper.draw(engine, this.buttons);
     }
 };
 
+const LINE2_f=0.96; // used to compute y of line2 label in percentage of total cancas height
 
 const IntervalSearchVariant = {
     label:"",
@@ -734,7 +735,9 @@ const IntervalSearchVariant = {
         this.labels = ["2", "b3", "3", "4", "b5", "5", "#5", "6", "b7", "7", "9", "#9", "11", "#11",  "13"];
         this.st =     [  2,    3,   4,   5,    6,   7,    8,   9,   10,  11,  14,   15,   17,    18,   21 ];
         this.buttons=[];
-        KeyboardHelper.addFunctionKeys(engine,this);
+        const objects = KeyboardHelper.addFunctionKeys(engine,this);
+        this.rootNoteLabel = objects.label1;
+        this.chordLabel = objects.label2;
         this.targetIdx=0;
         this.rootIdx=0;
         restoreVariantState(this);
@@ -760,13 +763,16 @@ const IntervalSearchVariant = {
         this.targetLabel = this.labels[this.targetIdx];
         this.targetST = this.st[this.targetIdx];
 
+        this.rootNoteLabel.text=this.rootNote;
+        this.chordLabel.text=this.targetLabel ;
+        
         this.startTime = Date.now();
         this.showHints=false;
         engine.history=[];
         engine.tappedKeys.clear();
         engine.score = 0;
         engine.addLabel(`${this.rootNote} ➔ ${this.targetLabel}`,
-                        { color:"#666", duration: -1, size:25, x:w/2, y:h-50});
+                        { color:"#666", duration: -1, size:25, x:w/2, y:h*LINE2_f});
 
     },
 
@@ -799,7 +805,7 @@ const IntervalSearchVariant = {
         if (this.showHints){
             engine.drawChordMap(this.rootNote, [0,this.targetST], ["1", this.targetLabel]);
         }
-        KeyboardHelper.draw(engine.ctx, this.buttons);
+        KeyboardHelper.draw(engine, this.buttons);
     }
 };
 

@@ -105,12 +105,6 @@
 
 <canvas id="fretboard"></canvas>
 
-<div class="ui-layer">
-    <div class="btn-group">
-        <button onclick="game.reset()">RESET</button>
-    </div>
-</div>
-
 <button id="menuTrigger" onclick="toggleMenu(true)">☰</button>
 <div id="sideMenu" class="menu-hidden">
     <div class="menu-header">
@@ -156,11 +150,14 @@
         <br><br>
         <a href="./tide.html">Tide in Joao Pessoa</a>
     </div>
+    <div>
+        <p id="game-info-display">Calculating...</p>
+    </div>
 
 </div>
-<script src="variants.js?v=1.820"></script>
-<script src="scales.js?v=1.04"></script>
-<script src="keyhelper.js?v=1.05"></script>
+<script src="variants.js?v=1.821"></script>
+<script src="scales.js?v=1.05"></script>
+<script src="keyhelper.js?v=1.06"></script>
 
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -267,12 +264,44 @@ class FretboardEngine {
         window.addEventListener('resize', () => this.resize());
         this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e), {passive: false});
         this.resize();
+
+        const display = document.getElementById('game-info-display');
+        display.innerHTML = `Width: ${canvas.width}px | Height: ${canvas.height}px`;
     }
 
     resize() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
         this.calculateFrets();
+        const designWidth = 390, designHeight = 797; 
+        this.scale = this.canvas.width / designWidth;
+        this.scaleH = this.canvas.height / designHeight;
+        this.setUIProportions();
+    }
+
+    setUIProportions() {
+        // 3. Define base sizes (what they were in your original code)
+        const baseBtnW = 45;
+        const baseBtnH = 45;
+        const basePadding = 25;
+    
+        // 4. Return the scaled values
+        this.uiprop= {
+            scale: this.scale,
+            btnW: baseBtnW * this.scale,
+            btnH: baseBtnH * this.scale,
+            btnGap: 8 * this.scale,
+            fctbtnW: 45 * this.scale,
+            fctbtnH: 30 * this.scale,
+            fctfntsize: 16 * this.scale,
+            sidePadding: 15 * this.scale,
+            arrowbtnw : 25 * this.scale,
+            arrowbtnh : 43 * this.scale,
+            arrowvgap : 5 * this.scale,
+            arrowhgap : 10 * this.scale,
+            arrowfntsize: 20 * this.scale,
+
+        };
     }
 
     getOffsetX() {

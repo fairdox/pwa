@@ -155,6 +155,6 @@ const ScalePathVariant = {
             engine.drawChordMap(this.rootNote, this.scaleST, this.scaleFormula,
                                 0,12, true, drawNoteNames,this.foundNotes);
         }
-        KeyboardHelper.draw(engine.ctx, this.buttons);
+        KeyboardHelper.draw(engine, this.buttons);
     }
 };

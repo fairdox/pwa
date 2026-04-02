@@ -8,7 +8,7 @@ const SCALES = [
 const ScalePathVariant = {
     label: "Scale Box Trainer",
     statKey: "SB1",
-    
+    singleStatKey: true,
     init(engine) {
         const h = engine.canvas.height;
         const w = engine.canvas.width;
@@ -31,12 +31,12 @@ const ScalePathVariant = {
         this.btnopt1.hidden=true;
         this.rootNoteLabel = objects.label1;
         this.fretBoxLabel = objects.label2;
-        this.showShapeBtn = KeyboardHelper.addFunctionButton(engine, this, "Shapes",  pad, h*1/3,
-                                                             "#444",null, false,scale*35,scale*20,12);
+        this.showShapeBtn = KeyboardHelper.addFunctionButton(engine, this, "🧩",  pad, h*1/3,
+                                                             "#484",null, false,scale*30,scale*25,18);
         
-        this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "Sound",
-                                                             pad, h*1/3-this.showShapeBtn.h-pad,
-                                                             "#444",null, false,scale*35,scale*20,12);
+        this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "🔊",
+                                                             pad, h*1/3-this.showShapeBtn.h-pad*2,
+                                                             "#484",null, false,scale*30,scale*25,18);
         
         this.rootIdx=0;
         this.selectedTopFret=0;
@@ -125,7 +125,7 @@ const ScalePathVariant = {
             return;
         }
         const pitch = StringBasePitches[s] + f;
-        if (this.playBtn){
+        if (this.playBtn.toggleState){
             engine.audio.playNote(pitch);
         }
 

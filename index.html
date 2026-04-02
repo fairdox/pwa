@@ -300,6 +300,9 @@ class FretboardEngine {
             fctbtnW: 45 * this.scale,
             fctbtnH: 30 * this.scale,
             fctfntsize: 16 * this.scale,
+            optbtnW: 30 * this.scale,
+            optbtnH: 20 * this.scale,
+            keybfntsize: 16 * this.scale,
             sidePadding: 15 * this.scale,
             arrowbtnw : 25 * this.scale,
             arrowbtnh : 43 * this.scale,
@@ -1251,7 +1254,7 @@ getTightOffsets(startFret, scaleST, rootIdx) {
         }
         this.history = this.history.filter(item => (item.name !== noteName && item.sIdx !== sIdx) );
     }
-    
+
     processResult(isCorrect, data) {
         const { visualX, visualY, noteName, sIdx, distance, stayOnChallenge, color , skipHistory} = data;
         const now = Date.now();
@@ -1361,6 +1364,10 @@ getTightOffsets(startFret, scaleST, rootIdx) {
                 all.push({ label: `${this.statKey }-${n}`, score: val });
                 if(val !== -1) { sum += val; count++; }
             });
+        }if (this.variant?.singleStatKey){
+            sum = this.stats[`${this.statKey }`] ?? 0;
+            all.push({ label: `${this.statKey}`, score: sum });
+            count=1;
         }else{
             for (let s = 0; s < 6; s++) {
                 NOTES.forEach(n => {

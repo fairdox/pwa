@@ -26,8 +26,9 @@ const KeyboardHelper = {
                 y: startYWhite,
                 w: bw, h: bh,
                 note: note,
-                color: "#bbb",
+                color: "#aaa",
                 toggleState: null,
+                fntSize: engine.uiprop.keybfntsize,
             });
         });
         
@@ -48,6 +49,7 @@ const KeyboardHelper = {
                 note: bk.note,
                 color: "#333",
                 toggleState: null,
+                fntSize: engine.uiprop.keybfntsize,
             });
         });
     },
@@ -134,19 +136,20 @@ const KeyboardHelper = {
         let pos = engine.getFretCoordinates(0,11);
         const pad = engine.uiprop.sidePadding;
         const btnw = engine.uiprop.arrowbtnw;
-        const lpad = pad/2;
-        const rpad = pad + engine.uiprop.fctbtnW;
+        const optbtnw = engine.uiprop.optbtnW;
+        const optbtnh = engine.uiprop.optbtnH;
+        const lpad = pad ;
+        const rpad = pad + optbtnw;
 
         const btnopt1=KeyboardHelper.addFunctionButton(engine, variant, "1|A", lpad, pos.y, "#682",
                                          null,false);
         btnopt1.hidden=true;
         
-        pos = engine.getFretCoordinates(0,9);
-        const btnopt2=KeyboardHelper.addFunctionButton(engine, variant, "Hints", lpad, pos.y, "#682",
-                                         () => variant.hints(engine),false); 
-        pos = engine.getFretCoordinates(0,9);
-        const btnopt3=KeyboardHelper.addFunctionButton(engine, variant, "Clear", w-rpad, pos.y, "#A82",
-                                         () => variant.initGame(engine));
+        pos = engine.getFretCoordinates(0,2);
+        const btnopt2=KeyboardHelper.addFunctionButton(engine, variant, "✨", lpad, pos.y, "#682",
+                                         () => variant.hints(engine),false,optbtnw,optbtnh); // hint button
+        const btnopt3=KeyboardHelper.addFunctionButton(engine, variant, "✕", w-rpad, pos.y, "#A82",
+                                         () => variant.initGame(engine),null,optbtnw,optbtnh); // clear button
 
         pos = engine.getFretCoordinates(0,5);
         const arrowsA=KeyboardHelper.addArrowKeys(engine,variant,
@@ -252,7 +255,7 @@ const KeyboardHelper = {
             ctx.font = `bold ${btn.fntSize}px sans-serif`;
             
             // Center the text + the offset so the label "sinks" with the button
-            ctx.fillText(btn.note, bx + btn.w/2, by + btn.h/2 + 6);
+            ctx.fillText(btn.note, bx + btn.w/2, by + btn.h/2 );
     
             // 5. Cleanup click state
             if (btn.clickTime && (Date.now() - btn.clickTime) >= 100) {

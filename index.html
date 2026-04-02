@@ -393,6 +393,7 @@ class FretboardEngine {
         this.lastTapTime = Date.now();
         this.labels =[];
         this.HighlightFrets=null;
+        this.livesLeft=0; // this is to be managed by variants in init() if>0 lives are displayed on top
         if (!keepScore) this.score = 0;
         if (this.variant) {
             this.variant.init(this);
@@ -406,6 +407,12 @@ class FretboardEngine {
                 this.triggerPerfect(`${this.variant.countdown}`,this.variant.countdown,1000);
                 this.gameActive = false;
             }
+        }
+        if (this.livesLeft>0){
+            this.livesLabel=this.addLabel("",
+                        { color:"#600", duration: -1, 
+                          size:12*this.uiprop.scale, x:this.canvas.width*1/4, y:15});
+            this.incrementLives(0);// just to set the initial string with the number of lives
         }
         
     }
@@ -434,13 +441,13 @@ class FretboardEngine {
     }
 
     handleTouch(e) {
-        if (this.isAutoPaused) {
+        if (this.isAutoPaused || !this.gameActive) {
             this.reset(true);
             return;
         }
     
         this.lastTapTime = Date.now();
-        if (!this.gameActive || this.isPaused) return;
+        if ( this.isPaused) return;
         e.preventDefault();
     
         const rect = this.canvas.getBoundingClientRect();
@@ -503,6 +510,13 @@ class FretboardEngine {
 
     animate(x, y, name, color) {
         this.animations.push({ x, y, name, color, startTime: Date.now() });
+    }
+
+    incrementLives(inc=1,max=3) {
+        this.livesLeft = (this.livesLeft+inc+max+1) % (max+1); // from 0 to  10 lives 
+        const char="❤";
+        this.livesLabel.text = char.repeat(this.livesLeft);
+        return this.livesLeft; // when 0 , game's over
     }
     drawLabels() {
         if (!this.labels || this.labels.length === 0) return;
@@ -1264,20 +1278,16 @@ getTightOffsets(startFret, scaleST, rootIdx) {
         const taccel = 60 + (Math.random() - 0.5) * 50;
         const up = this.getCustomRandom(360-25,360-45);
         const down = this.getCustomRandom(180+25,180+40);
+
+        const speedBonus = Math.max(0, 100 - (delay / 100));
+        const final = Math.round(Math.max(0, this.score) + speedBonus);
         
         if (isCorrect) {
             // 1. Calculate Score & Stats
-            const speedBonus = Math.max(0, 100 - (delay / 100));
-            const final = Math.round(Math.max(0, this.score) + speedBonus);
-            
             this.totalFound++;
             this.totalDelay += delay;
             this.avgReactionTime = this.totalDelay / this.totalFound / 1000;
-            if (!stayOnChallenge){ // challenge is over record stats
-                const key = `${this.statKey}${sIdx}-${noteName}`;
-                const existing = this.stats[key];
-                this.stats[key] = existing === undefined ? final : Math.round((final + existing) / 2);
-            }
+            this.score=final;
     
             // 2. Effects (Using the specific chord-slot color if provided)
             const feedbackColor = color || "#4CAF50"; 
@@ -1285,19 +1295,6 @@ getTightOffsets(startFret, scaleST, rootIdx) {
                 this.history.push({ x: visualX, y: visualY, name: noteName, color: feedbackColor, sIdx });
             }
             this.animate(visualX, visualY, noteName, feedbackColor);
-            
-            localStorage.setItem('fretStats', JSON.stringify(this.stats));
-    
-            // 3. Flow Control: ONLY reset if the chord is actually finished
-            if (!stayOnChallenge) {
-                this.gameActive = false;
-                // Short delay so you can see the final completed chord
-                setTimeout(() => this.reset(true), 1200);
-            } else {
-                // refresh timer for the next note in the challenge
-                this.variant.startTime = Date.now(); 
-            }
-            
             this.addLabel(`${final}`, { duration: 2 , color:"green", x: visualX+20, y: visualY-10, 
                                   rotationSpeed:rspeed, speed:tspeed, acceleration : taccel,
                                   direction: up, duration :1, size:30                               
@@ -1315,6 +1312,22 @@ getTightOffsets(startFret, scaleST, rootIdx) {
                                   rotationSpeed:rspeed, speed: tspeed, acceleration : taccel, 
                                   direction: down, duration:1, size:30
                                  });
+        }
+
+        if (isCorrect){ // solution found record stats
+            const key = `${this.statKey}${sIdx}-${noteName}`;
+            const existing = this.stats[key];
+            this.stats[key] = existing === undefined ? final : Math.round((final + existing) / 2);
+        }        
+        // check for Game over or continue
+        if (!stayOnChallenge) {
+            this.gameActive = false;
+            localStorage.setItem('fretStats', JSON.stringify(this.stats));//persist stats
+            // Short delay so you can see the game result
+            setTimeout(() => this.reset(true), 1200);
+        } else {
+            // refresh timer challenge is not over yet
+            this.variant.startTime = Date.now(); 
         }
     }
     getWorstCombos(limit, exclude = null) {

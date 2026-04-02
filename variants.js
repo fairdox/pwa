@@ -163,6 +163,14 @@ const KeyboardVariant = {
     statKey: "K",
     countdown: 0,
     init(engine) {
+        KeyboardHelper.initButtons(engine, this);
+        this.startTime = Date.now();
+        engine.gameActive = true;
+        engine.livesLeft=3;
+        this.newChallenge(engine);
+    },
+
+    newChallenge(engine){
         // Pick a target location (using your existing worst-score logic)
         const candidates = engine.getWorstCombos(10);
         const selection = candidates.length > 0 ? 
@@ -179,13 +187,20 @@ const KeyboardVariant = {
                 break;
             }
         }
-        KeyboardHelper.initButtons(engine, this);
-        this.startTime = Date.now();
         engine.score=100;
         engine.mistakes=0;
-        engine.gameActive = true;
-
+        engine.history = [];
+        engine.tappedKeys.clear();
     },
+
+    gameOver(engine){
+        engine.gameActive=false;
+        const w = engine.canvas.width;
+        const h = engine.canvas.height;
+        engine.addLabel(`GAME OVER`,
+                        { color:"#666", duration: -1, size:25, x:w/2, y:h/3});
+    },
+    
     onTap(engine, s, f, name, x, y) {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);
         if (!btn) return;
@@ -198,13 +213,29 @@ const KeyboardVariant = {
         engine.processResult(isCorrect, {
             visualX: coords.x, visualY: coords.y,
             sIdx: this.targetString, noteName: btn.note, distance: 0,
-            stayOnChallenge: false
+            stayOnChallenge: true
         });
+        if (isCorrect){
+            if (this.score>180) {
+                engine.incrementLives(1);
+            }
+            this.newChallenge(engine);
+        }else if (engine.incrementLives(-1)===0 ){
+            this.gameOver(engine);            
+        }
         
     },
     render(engine) {
         KeyboardHelper.draw(engine, this.buttons);
+        const delay = Date.now() - this.startTime;
         if (!engine.gameActive) return;
+        if (delay>4000){
+            if (engine.incrementLives(-1)===0)
+                this.gameOver(engine);// no more lives game over
+            else
+                this.startTime=Date.now();
+        }
+
         const coords = engine.getFretCoordinates(this.targetString, this.targetFret);
         engine.drawNode(coords.x, coords.y, "?", "gold", 12, 1);
 
@@ -774,6 +805,7 @@ const IntervalSearchVariant = {
         
         this.startTime = Date.now();
         this.showHints=false;
+
         engine.history=[];
         engine.tappedKeys.clear();
         engine.score = 0;

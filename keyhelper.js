@@ -68,7 +68,7 @@ const KeyboardHelper = {
             toggleState,
             clickTime: null,
             hidden: false,
-            fntSize:  fntSize === undefined ?  engine.uiprop.fctfntsize : fntSize
+            fntSize:  fntSize === undefined ?  engine.uiprop.fctfntsize : fntSize,
         };
 
         variant.buttons.push(newButton);
@@ -119,16 +119,16 @@ const KeyboardHelper = {
             ylbl=y1+btnh+vgap+(labelHeight/2);
         }
 
-        this.addFunctionButton(engine, variant, "^", x1, y1, "#555", fct1, null, btnw, btnh); 
+        const up=this.addFunctionButton(engine, variant, "^", x1, y1, "#555", fct1, null, btnw, btnh); 
         const label=engine.addLabel("xxxxxx",
                     { color:"#999", duration: -1, size:uiprop.arrowfntsize, x:xlbl, y:ylbl});
         
-        this.addFunctionButton(engine, variant, "v", x2, y2, "#555", fct2, null, btnw, btnh); 
+        const down=this.addFunctionButton(engine, variant, "v", x2, y2, "#555", fct2, null, btnw, btnh); 
 
-        return {label};
+        return {up,label,down};
     },
 
-    addFunctionKeys(engine, variant){
+    addFunctionKeys(engine, variant, arrows=true){
         const h = engine.canvas.height;
         const w = engine.canvas.width;
  
@@ -141,31 +141,32 @@ const KeyboardHelper = {
         const lpad = pad ;
         const rpad = pad + optbtnw;
 
-        const btnopt1=KeyboardHelper.addFunctionButton(engine, variant, "1|A", lpad, pos.y, "#682",
+        const btnopt=KeyboardHelper.addFunctionButton(engine, variant, "1|A", lpad, pos.y, "#682",
                                          null,false);
-        btnopt1.hidden=true;
+        btnopt.hidden=true;
         
         pos = engine.getFretCoordinates(0,2);
-        const btnopt2=KeyboardHelper.addFunctionButton(engine, variant, "✨", lpad, pos.y, "#682",
+        const btnHint=KeyboardHelper.addFunctionButton(engine, variant, "✨", lpad, pos.y, "#682",
                                          () => variant.hints(engine),false,optbtnw,optbtnh); // hint button
-        const btnopt3=KeyboardHelper.addFunctionButton(engine, variant, "✕", w-rpad, pos.y, "#A82",
+        const btnClear=KeyboardHelper.addFunctionButton(engine, variant, "✕", w-rpad, pos.y, "#A82",
                                          () => variant.initGame(engine),null,optbtnw,optbtnh); // clear button
 
-        pos = engine.getFretCoordinates(0,5);
-        const arrowsA=KeyboardHelper.addArrowKeys(engine,variant,
-                                    {x:pad, y:pos.y, 
-                                     fct1: ()=>  variant.incrementRoot(engine,+1),
-                                     fct2: ()=>  variant.incrementRoot(engine,-1),
-                                    });
-        const label1 = arrowsA.label;
-            
-        const arrowsB=KeyboardHelper.addArrowKeys(engine,variant,
-                                    {x:w-pad-btnw, y:pos.y, 
-                                     fct1: ()=>  variant.incrementChord(engine,-1),
-                                     fct2: ()=>  variant.incrementChord(engine,+1),
-                                    });
-        const label2 = arrowsB.label;
-        return {btnopt1,btnopt2,label1 ,label2};
+        if (arrows){
+            pos = engine.getFretCoordinates(0,5);
+            const arrowsL=KeyboardHelper.addArrowKeys(engine,variant,
+                                        {x:pad, y:pos.y, 
+                                         fct1: ()=>  variant.incrementRoot(engine,+1),
+                                         fct2: ()=>  variant.incrementRoot(engine,-1),
+                                        });
+                
+            const arrowsR=KeyboardHelper.addArrowKeys(engine,variant,
+                                        {x:w-pad-btnw, y:pos.y, 
+                                         fct1: ()=>  variant.incrementChord(engine,-1),
+                                         fct2: ()=>  variant.incrementChord(engine,+1),
+                                        });
+            return {btnopt,btnHint,btnClear,arrowsL, arrowsR};
+        }
+        return {btnopt,btnHint,btnClear};
     },
 
     initDynamicMasterPalette(engine, variant) {

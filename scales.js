@@ -27,10 +27,10 @@ const ScalePathVariant = {
                                     });
         this.scaleLabel = kobj.label;
 
-        this.btnopt1 = objects.btnopt1;
-        this.btnopt1.hidden=true;
-        this.rootNoteLabel = objects.label1;
-        this.fretBoxLabel = objects.label2;
+        this.btnopt = objects.btnopt;
+        this.btnopt.hidden=true;
+        this.rootNoteLabel = objects.arrowsL.label;
+        this.fretBoxLabel = objects.arrowsR.label;
         this.showShapeBtn = KeyboardHelper.addFunctionButton(engine, this, "🧩",  pad, h*1/3,
                                                              "#484",null, false,scale*30,scale*25,18);
         
@@ -96,9 +96,9 @@ const ScalePathVariant = {
     hints(engine){
         this.showHints = ++this.showHints % 3;
         if (this.showHints===0){
-            this.btnopt1.hidden=true;
+            this.btnopt.hidden=true;
         } else{
-            this.btnopt1.hidden=false;
+            this.btnopt.hidden=false;
         }
     },
 
@@ -141,7 +141,7 @@ const ScalePathVariant = {
                 this.foundNotes.push(noteKey);
                 const formulaIdx = this.scaleST.indexOf(dist);
                 const intervalLabel = this.scaleFormula[formulaIdx];
-                const label = this.btnopt1.toggleState ? name: intervalLabel; 
+                const label = this.btnopt.toggleState ? name: intervalLabel; 
                 
                 engine.processResult(true, { visualX: x, visualY: y, noteName: label, 
                                              stayOnChallenge: stay , skipHistory: true});
@@ -154,7 +154,7 @@ const ScalePathVariant = {
     preRender(engine) {
         const ctx = engine.ctx;
         this.label=`${this.foundNotes.length} / ${this.totalInBox} Notes Found`;
-        const drawNoteNames= this.btnopt1.toggleState;
+        const drawNoteNames= this.btnopt.toggleState;
         if (this.showShapeBtn.toggleState){
             engine.drawFullFretboardMap(this.rootNote, this.scaleST);
         }

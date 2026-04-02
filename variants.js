@@ -279,9 +279,9 @@ const IntervalVariant = {
         } else {
             KeyboardHelper.initButtons(engine, this);
         }
-        KeyboardHelper.addFunctionButton(engine, this, "1|A",  pad, h*1/3, "#682",
-                                         ()=> this.switchMode(engine));
 
+        const objects = KeyboardHelper.addFunctionKeys(engine,this, false);
+        objects.btnClear.hidden=true;
         this.targetIdx = Math.floor(Math.random() * (this.formula.length - 1)) + 1;
         this.targetInterval = this.formula[this.targetIdx]; 
         this.targetNoteName = NOTES[(this.rootIdx + this.semitones[this.targetIdx]) % 12];
@@ -290,11 +290,15 @@ const IntervalVariant = {
             `Find the missing note` : 
             `What is the role of ${this.targetNoteName}?`;
         engine.addLabel(prompt, { duration: -1, y: 80 });
-        
+        this.showHints=false;
         this.userAttempt = null;
         this.startTime = Date.now();
     },
-
+    
+    hints(engine){
+        this.showHints = ! this.showHints;
+    },
+    
     switchMode(engine){
         this.mode = this.mode === 0 ? 1 : 0;
         setTimeout(() => engine.reset(true), 100);
@@ -358,12 +362,14 @@ const IntervalVariant = {
             KeyboardHelper.roundRect(ctx, x, centerY, sqSize, sqSize, 8, false, true);
 
             if (i === 0 || !isTarget) {
-                ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-                ctx.font = "14px sans-serif";
-                ctx.fillText(interval, x + sqSize/2, centerY + 20);
-                ctx.fillStyle = "white";
-                ctx.font = "bold 18px sans-serif";
-                ctx.fillText(noteAtSlot, x + sqSize/2, centerY + 42);
+                if (this.showHints){
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                    ctx.font = "14px sans-serif";
+                    ctx.fillText(interval, x + sqSize/2, centerY + 20);
+                    ctx.fillStyle = "white";
+                    ctx.font = "bold 18px sans-serif";
+                    ctx.fillText(noteAtSlot, x + sqSize/2, centerY + 42);
+                }
             } else {
                 if (this.userAttempt?.isCorrect) {
                     ctx.fillStyle = "#4CAF50";
@@ -621,8 +627,8 @@ const ChordCompletionVariant = {
         this.showHints = false;
         this.buttons=[];
         const objects = KeyboardHelper.addFunctionKeys(engine,this);
-        this.rootNoteLabel = objects.label1;
-        this.chordLabel = objects.label2;
+        this.rootNoteLabel = objects.arrowsL.label;
+        this.chordLabel = objects.arrowsR.label;
         this.incrementRoot(engine,0,false);
         this.incrementChord(engine,0,true);
         engine.addLabel("Use arrows to change chords", {color:"green", size:16, duration:-1});
@@ -736,8 +742,8 @@ const IntervalSearchVariant = {
         this.st =     [  2,    3,   4,   5,    6,   7,    8,   9,   10,  11,  14,   15,   17,    18,   21 ];
         this.buttons=[];
         const objects = KeyboardHelper.addFunctionKeys(engine,this);
-        this.rootNoteLabel = objects.label1;
-        this.chordLabel = objects.label2;
+        this.rootNoteLabel = objects.arrowsL.label;
+        this.chordLabel = objects.arrowsR.label;
         this.targetIdx=0;
         this.rootIdx=0;
         restoreVariantState(this);

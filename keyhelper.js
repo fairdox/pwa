@@ -53,7 +53,7 @@ const KeyboardHelper = {
     },
 
     addFunctionButton(engine, variant, label, x=0, y=0, color="#666",
-                      callback=null, toggleState=null,width, height) {
+                      callback=null, toggleState=null,width, height, fntSize) {
         const uiprop = engine.uiprop;
         const newButton = {
             x: x,
@@ -66,6 +66,7 @@ const KeyboardHelper = {
             toggleState,
             clickTime: null,
             hidden: false,
+            fntSize:  fntSize === undefined ?  engine.uiprop.fctfntsize : fntSize
         };
 
         variant.buttons.push(newButton);
@@ -221,7 +222,6 @@ const KeyboardHelper = {
     // Standard rendering loop
     draw(engine, buttons) {
         const ctx=engine.ctx; 
-        ctx.font = `bold ${engine.uiprop.fctfntsize}px sans-serif`;
         buttons.forEach(btn => {
             if (btn.hidden) return; 
             const isPressed = btn.clickTime && (Date.now() - btn.clickTime) < 100;
@@ -249,6 +249,7 @@ const KeyboardHelper = {
             ctx.fillStyle = isPressed ? "white" : (btn.color === "#333" ? "white" : "black");
 
             ctx.textAlign = "center";
+            ctx.font = `bold ${btn.fntSize}px sans-serif`;
             
             // Center the text + the offset so the label "sinks" with the button
             ctx.fillText(btn.note, bx + btn.w/2, by + btn.h/2 + 6);

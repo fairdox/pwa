@@ -14,11 +14,14 @@ const ScalePathVariant = {
         const w = engine.canvas.width;
         this.buttons=[];
         const objects = KeyboardHelper.addFunctionKeys(engine,this);
-        let pos = engine.getFretCoordinates(0,12);
+        const uiprop = engine.uiprop;
+        const scale = uiprop.scale;
+        const pad = uiprop.sidePadding;
 
+        // horizontal arrows in bottom of the screen for changing the scale 
         const kobj=KeyboardHelper.addArrowKeys(engine,this,
-                                    {x:w/2, y:pos.y+30, horizontal: true,
-                                     btnh: 25, btnw: 40,
+                                    {x:w/2, y: h*0.9, horizontal: true,
+                                     btnh: scale*25, btnw: scale*40,
                                      fct1: ()=>  this.incrementScale(engine,+1),
                                      fct2: ()=>  this.incrementScale(engine,-1),
                                     });
@@ -28,6 +31,13 @@ const ScalePathVariant = {
         this.btnopt1.hidden=true;
         this.rootNoteLabel = objects.label1;
         this.fretBoxLabel = objects.label2;
+        this.showShapeBtn = KeyboardHelper.addFunctionButton(engine, this, "Shapes",  pad, h*1/3,
+                                                             "#444",null, false,scale*35,scale*20,12);
+        
+        this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "Sound",
+                                                             pad, h*1/3-this.showShapeBtn.h-pad,
+                                                             "#444",null, false,scale*35,scale*20,12);
+        
         this.rootIdx=0;
         this.selectedTopFret=0;
         this.startFret=0;
@@ -115,7 +125,9 @@ const ScalePathVariant = {
             return;
         }
         const pitch = StringBasePitches[s] + f;
-        engine.audio.playNote(pitch);
+        if (this.playBtn){
+            engine.audio.playNote(pitch);
+        }
 
         const rootPitchBase = NOTES.indexOf(this.rootNote);
         const currentPitch = StringBasePitches[s] + f;
@@ -143,6 +155,9 @@ const ScalePathVariant = {
         const ctx = engine.ctx;
         this.label=`${this.foundNotes.length} / ${this.totalInBox} Notes Found`;
         const drawNoteNames= this.btnopt1.toggleState;
+        if (this.showShapeBtn.toggleState){
+            engine.drawFullFretboardMap(this.rootNote, this.scaleST);
+        }
         if (this.showHints>0){
             if (this.showHints==1)
                 engine.drawChordMap(this.rootNote, this.scaleST, this.scaleFormula ,
@@ -155,6 +170,7 @@ const ScalePathVariant = {
             engine.drawChordMap(this.rootNote, this.scaleST, this.scaleFormula,
                                 0,12, true, drawNoteNames,this.foundNotes);
         }
+
         KeyboardHelper.draw(engine, this.buttons);
     }
 };

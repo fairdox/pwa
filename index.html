@@ -156,7 +156,7 @@
 
 </div>
 <script src="variants.js?v=1.821"></script>
-<script src="scales.js?v=1.05"></script>
+<script src="scales.js?v=1.06"></script>
 <script src="keyhelper.js?v=1.06"></script>
 
 <script>
@@ -165,8 +165,14 @@ const StringBasePitches = [40, 45, 50, 55, 59, 64];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
 const MARKERS = [3, 5, 7, 9, 12];
 const ROYGBIV = [ "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8B00FF","#8B00FF" ];
-
-
+const CAGED_DATA = {
+    "C": { color: "#FF4500", min: [0, 0, 0, 0, 1, 0], max: [3, 3, 2, 2, 3, 3] }, // Orange-Red
+    "A": { color: "#1E90FF", min: [0, 0, 0, 0, 0, 0], max: [3, 2, 2, 2, 3, 3] }, // Dodger Blue
+    "G": { color: "#FFD700", min: [0, 2, 2, 2, 0, 0], max: [5, 5, 5, 4, 3, 3] }, // Gold 
+    "E": { color: "#32CD32", min: [0, 0, 0, 1, 0, 0], max: [3, 2, 2, 3, 3, 3] }, // Lime Green
+    "D": { color: "#9370DB", min: [0, 0, 0, 0, 0, 1], max: [2, 2, 3, 5, 5, 5] }  // Medium Purple
+};
+    
 class AudioController {
     constructor() {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -359,7 +365,9 @@ class FretboardEngine {
         const offsetX = (fullW - activeW) / 2;
         // spacingX is the distance between vertical string lines
         const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
-        const x = offsetX + this.marginX + 10 + (sIdx * spacingX);   
+        const x = offsetX + this.marginX + 10 + (sIdx * spacingX);
+
+        this.stringSpacing = spacingX;
         // 2. Get Vertical Position (Frets)
         let y;
         if (fIdx === 0) {
@@ -1002,6 +1010,216 @@ class FretboardEngine {
             }
         }
         this.ctx.globalAlpha = 1;
+    }
+    
+    calculateAllShapePositions(rootNoteName) {
+        const rootIdx = NOTES.indexOf(rootNoteName);
+        const getFret = (stringIdx, targetNoteIdx) => (targetNoteIdx - StringBasePitches[stringIdx] + 120) % 12;
+    
+        const eRoot = getFret(0, rootIdx); // Root on Low E
+        const aRoot = getFret(1, rootIdx); // Root on A string
+
+        return {
+            // "Forward" Shapes (Root is at the start of the box)
+            "E": eRoot,
+            "A": aRoot,
+            "D": getFret(2, rootIdx), // Root on D string
+    
+            // "Backward" Shapes (We shift the startFret back so the Root is at the end)
+            "G": (eRoot - 3 + 12) % 12, 
+            "C": (aRoot - 3 + 12) % 12
+        };
+    }   
+    
+    // Add 'offsets' as the third parameter
+    drawShapePolygon(startFret, shapeKey, offsets) {
+        const ctx = this.ctx;
+        const data = CAGED_DATA[shapeKey];
+        if (!data) return;
+    
+        // IMPORTANT: Use the dynamic offsets passed from drawFullFretboardMap
+        // fallback to data.min/max only if offsets aren't provided
+        const minOffsets = offsets ? offsets.min : data.min;
+        const maxOffsets = offsets ? offsets.max : data.max;
+    
+        ctx.beginPath();
+        ctx.fillStyle = data.color + "22"; 
+        ctx.strokeStyle = data.color+ "33";
+        ctx.lineWidth = 1;
+        ctx.lineJoin = "round";
+    
+        const coords = [];
+    
+        // Step 1: Trace Right Side (Using maxOffsets)
+        for (let s = 0; s < 6; s++) {
+            let f = startFret + maxOffsets[s];
+            // If the offset pushes us to the "Ghost Fret", 
+            // we draw the line to the very edge of the 12th fret
+            let pos = this.getFretCenter(s, f);
+            if (f > 12) {
+                pos = this.getFretCenter(s, 12);
+                pos.y=pos.y+30;
+            }
+            if (f <0) {
+                pos = this.getFretCenter(s, 0);
+                pos.y=pos.y-30;
+            }
+            coords.push(pos);
+        }
+    
+        // Step 2: Trace Left Side (Using minOffsets)
+        for (let s = 5; s >= 0; s--) {
+            let f = startFret + minOffsets[s];
+            let pos = this.getFretCenter(s, f);
+            if (f > 12) {
+                pos = this.getFretCenter(s, 12);
+                pos.y=pos.y+30;
+            }
+            if (f <0) {
+                pos = this.getFretCenter(s, 0);
+                pos.y=pos.y-30;
+            }
+            coords.push(pos);
+        }
+
+        let corner=null;
+        let last = null;
+            
+        coords.forEach((p, i) => {
+            if (i === 0) {
+                ctx.moveTo(p.x, p.y);
+                corner = p;
+            } else {
+                // Only step if BOTH X and Y have changed (diagonal move)
+                if (p.x !== last.x && p.y !== last.y) {
+                    const halfX = (p.x - last.x) / 2;
+                    const halfY = (p.y - last.y) / 2;
+        
+                    // Logic: Move horizontally to the half-way point, 
+                    // then vertically to the target Y, 
+                    // then horizontally to the target X.
+                    ctx.lineTo(last.x + halfX, last.y); // Horizontal leg
+                    ctx.lineTo(p.x - halfX, p.y);      // Diagonal/Vertical jump
+                    ctx.lineTo(p.x, p.y);               // Final arrival
+                } else {
+                    // Straight horizontal or vertical line
+                    ctx.lineTo(p.x, p.y);
+                }
+            }
+            //ctx.fillStyle = "white"; ctx.fillText(`${i}`, p.x+10, p.y - 10);
+            last = p;
+        });
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    
+        // Labeling logic
+        ctx.fillStyle = data.color+"33";
+        ctx.font = "bold 20px sans-serif";
+        const firstPos = this.getFretCenter(0, startFret);
+        ctx.fillText(`${shapeKey}`, corner.x+30, corner.y - 30);
+    }
+    calculateDynamicOffsets(startFret, scaleST, rootIdx) {
+        const min = [0, 0, 0, 0, 0, 0];
+        const max = [0, 0, 0, 0, 0, 0];
+    
+        for (let s = 0; s < 6; s++) {
+            const stringRoot = StringBasePitches[s];
+            let foundAny = false;
+    
+            // Scan 6 frets ahead of the startFret to find scale members
+            for (let f = 0; f < 6; f++) {
+                const currentPitch = stringRoot + startFret + f;
+                const dist = (currentPitch - rootIdx + 120) % 12;
+    
+                if (scaleST.includes(dist)) {
+                    if (!foundAny) {
+                        min[s] = f;
+                        foundAny = true;
+                    }
+                    max[s] = f;
+                }
+            }
+        }
+        return { min, max };
+    }
+    // This function finds the actual boundaries of the scale notes within a shape's zone
+
+getTightOffsetsxXXX(startFret, scaleST, rootIdx) {
+    const min = [];
+    const max = [];
+
+    for (let s = 0; s < 6; s++) {
+        const stringPitch = StringBasePitches[s];
+        let sMin = null;
+        let sMax = null;
+
+        for (let offset = -1; offset <= 3; offset++) {
+            let f = startFret + offset;
+            
+            // The "Ghost Fret" Logic: 
+            // If the scanner hits 12 or 13, check Fret 0 or 1 for scale notes
+            const virtualFret = f % 12; 
+            
+            const pitch = stringPitch + virtualFret;
+            const dist = (pitch - rootIdx + 120) % 12;
+
+            if (scaleST.includes(dist)) {
+                if (sMin === null) sMin = offset;
+                sMax = offset;
+            }
+        }
+        min[s] = sMin !== null ? sMin : 0;
+        max[s] = sMax !== null ? sMax : 0;
+    }
+    return { min, max };
+}
+
+getTightOffsets(startFret, scaleST, rootIdx) {
+    const min = [];
+    const max = [];
+
+    for (let s = 0; s < 6; s++) {
+        const stringPitch = StringBasePitches[s];
+        let sMin = null;
+        let sMax = null;
+
+        for (let offset = -1; offset <= 3; offset++) {
+            const f = startFret + offset;
+            
+            // FAKE FRET LOGIC:
+            // (f + 12) % 12 turns -1 into 11, 0 into 0, 13 into 1...
+            const virtualFret = (f + 12) % 12; 
+            
+            const pitch = stringPitch + virtualFret;
+            const dist = (pitch - rootIdx + 120) % 12;
+
+            if (scaleST.includes(dist)) {
+                if (sMin === null) sMin = offset;
+                sMax = offset;
+            }
+        }
+        // If no notes are found, we default to 0 to prevent the polygon from breaking
+        min[s] = sMin !== null ? sMin : 0;
+        max[s] = sMax !== null ? sMax : 0;
+    }
+    return { min, max };
+}
+    
+    drawFullFretboardMap(rootNoteName, scaleST) {
+        const rootIdx = NOTES.indexOf(rootNoteName);
+        const shapePositions = this.calculateAllShapePositions(rootNoteName);
+        
+        Object.keys(shapePositions).forEach(shapeKey => {
+            //if (shapeKey!="C" && shapeKey!="G") return;
+            let startFret = shapePositions[shapeKey];
+            
+            // Keep everything in a consistent 0-11 range before drawing
+            startFret = (startFret + 12) % 12; 
+            
+            const dynamicData = this.getTightOffsets(startFret, scaleST, rootIdx);
+            this.drawShapePolygon(startFret, shapeKey, dynamicData);
+        });
     }
     
     triggerPerfect(msg, repeat=0, duration=1500 ) {

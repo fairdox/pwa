@@ -12,7 +12,7 @@ function saveVariantState(variant) {
     master[variant.statKey] = {
         rootIdx: variant.rootIdx,
         chordIdx: variant.chordIdx,
-        scaleIdx: variant.scaleIdx,
+        selectedTopFret: variant.selectedTopFret,
         targetIdx: variant.targetIdx, // This covers stIdx or whatever 'target' you use
         startFret: variant.startFret  // Added this since you're practicing Box 5!
     };
@@ -34,7 +34,7 @@ function restoreVariantState(variant) {
     // Silently apply saved values if they exist
     if (saved.rootIdx !== undefined) variant.rootIdx = saved.rootIdx;
     if (saved.chordIdx !== undefined) variant.chordIdx = saved.chordIdx;
-    if (saved.scaleIdx !== undefined) variant.scaleIdx = saved.scaleIdx;  
+    if (saved.selectedTopFret !== undefined) variant.selectedTopFret = saved.selectedTopFret;  
     if (saved.targetIdx !== undefined) variant.targetIdx = saved.targetIdx;
     if (saved.startFret !== undefined) variant.startFret = saved.startFret;
 }
@@ -273,7 +273,7 @@ const IntervalVariant = {
 
         const w = engine.canvas.width;
         const h = engine.canvas.height;
-        const pad = engine.uiprop.padding;
+        const pad = engine.uiprop.sidePadding;
         if (this.mode === 1) {
             KeyboardHelper.initDynamicMasterPalette(engine, this);
         } else {

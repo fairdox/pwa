@@ -164,7 +164,6 @@ const KeyboardVariant = {
     countdown: 0,
     init(engine) {
         KeyboardHelper.initButtons(engine, this);
-        this.startTime = Date.now();
         engine.gameActive = true;
         engine.livesLeft=3;
         this.newChallenge(engine);
@@ -191,14 +190,8 @@ const KeyboardVariant = {
         engine.mistakes=0;
         engine.history = [];
         engine.tappedKeys.clear();
-    },
-
-    gameOver(engine){
-        engine.gameActive=false;
-        const w = engine.canvas.width;
-        const h = engine.canvas.height;
-        engine.addLabel(`GAME OVER`,
-                        { color:"#666", duration: -1, size:25, x:w/2, y:h/3});
+        this.lastPenaltyTime=0;
+        this.startTime = Date.now();
     },
     
     onTap(engine, s, f, name, x, y) {
@@ -216,24 +209,30 @@ const KeyboardVariant = {
             stayOnChallenge: true
         });
         if (isCorrect){
-            if (this.score>180) {
+            if (engine.score>=178) {
                 engine.incrementLives(1);
+                engine.addLabel("❤",
+                        { duration: .75, size:25, x:coords.x, y:coords.y,
+                          speed:210, acceleration : 90, direction: -15
+                        });
             }
             this.newChallenge(engine);
         }else if (engine.incrementLives(-1)===0 ){
-            this.gameOver(engine);            
+            engine.gameOver();            
         }
         
     },
+    
     render(engine) {
         KeyboardHelper.draw(engine, this.buttons);
-        const delay = Date.now() - this.startTime;
+        const delay = Date.now() - Math.max(this.startTime,this.lastPenaltyTime);
         if (!engine.gameActive) return;
-        if (delay>4000){
+        if (delay>5000){
             if (engine.incrementLives(-1)===0)
-                this.gameOver(engine);// no more lives game over
-            else
-                this.startTime=Date.now();
+                engine.gameOver();// no life left game over
+            else{
+                this.lastPenaltyTime=Date.now();
+            }
         }
 
         const coords = engine.getFretCoordinates(this.targetString, this.targetFret);

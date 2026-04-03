@@ -44,6 +44,7 @@ const ScalePathVariant = {
         this.scaleIdx=0;
         restoreVariantState(this);
         this.showHints=0;
+        engine.livesLeft=5;
         this.initGame(engine);        
     },
     incrementRoot(engine,inc=1, reset=true,){
@@ -141,13 +142,19 @@ const ScalePathVariant = {
                 this.foundNotes.push(noteKey);
                 const formulaIdx = this.scaleST.indexOf(dist);
                 const intervalLabel = this.scaleFormula[formulaIdx];
-                const label = this.btnopt.toggleState ? name: intervalLabel; 
-                
+                const label = this.btnopt.toggleState ? name: intervalLabel;    
                 engine.processResult(true, { visualX: x, visualY: y, noteName: label, 
                                              stayOnChallenge: stay , skipHistory: true});
             }
         } else {
-            engine.processResult(false, { visualX: x, visualY: y, noteName: name, skipHistory: true });
+            engine.processResult(false, { visualX: x, visualY: y, noteName: name,
+                                             stayOnChallenge: true , skipHistory: true });
+        }
+        if (!isCorrect){
+            if (engine.incrementLives(-1,5)===0 ){
+                saveVariantState(this);
+                engine.gameOver();
+            }
         }
     },
 

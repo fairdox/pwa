@@ -416,7 +416,15 @@ class FretboardEngine {
         }
         
     }
-
+  
+    gameOver(){
+        this.gameActive=false;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        this.addLabel(`GAME OVER`,
+                        { color:"#666", duration: -1, size:25, x:w/2, y:h/3});
+    }
+    
     // const {  firstStringX, spacingX, offsetX , activeW} = engine.getFretboardLayout()
     getFretboardLayout() {
         const fullW = this.canvas.width;
@@ -513,7 +521,8 @@ class FretboardEngine {
     }
 
     incrementLives(inc=1,max=3) {
-        this.livesLeft = (this.livesLeft+inc+max+1) % (max+1); // from 0 to  10 lives 
+        if (inc!=0)
+            this.livesLeft = (this.livesLeft+inc+max+1) % (max+1); // from 0 to  10 lives 
         const char="❤";
         this.livesLabel.text = char.repeat(this.livesLeft);
         return this.livesLeft; // when 0 , game's over
@@ -1162,66 +1171,36 @@ class FretboardEngine {
     }
     // This function finds the actual boundaries of the scale notes within a shape's zone
 
-getTightOffsetsxXXX(startFret, scaleST, rootIdx) {
-    const min = [];
-    const max = [];
-
-    for (let s = 0; s < 6; s++) {
-        const stringPitch = StringBasePitches[s];
-        let sMin = null;
-        let sMax = null;
-
-        for (let offset = -1; offset <= 3; offset++) {
-            let f = startFret + offset;
-            
-            // The "Ghost Fret" Logic: 
-            // If the scanner hits 12 or 13, check Fret 0 or 1 for scale notes
-            const virtualFret = f % 12; 
-            
-            const pitch = stringPitch + virtualFret;
-            const dist = (pitch - rootIdx + 120) % 12;
-
-            if (scaleST.includes(dist)) {
-                if (sMin === null) sMin = offset;
-                sMax = offset;
+    getTightOffsets(startFret, scaleST, rootIdx) {
+        const min = [];
+        const max = [];
+    
+        for (let s = 0; s < 6; s++) {
+            const stringPitch = StringBasePitches[s];
+            let sMin = null;
+            let sMax = null;
+    
+            for (let offset = -1; offset <= 3; offset++) {
+                const f = startFret + offset;
+                
+                // FAKE FRET LOGIC:
+                // (f + 12) % 12 turns -1 into 11, 0 into 0, 13 into 1...
+                const virtualFret = (f + 12) % 12; 
+                
+                const pitch = stringPitch + virtualFret;
+                const dist = (pitch - rootIdx + 120) % 12;
+    
+                if (scaleST.includes(dist)) {
+                    if (sMin === null) sMin = offset;
+                    sMax = offset;
+                }
             }
+            // If no notes are found, we default to 0 to prevent the polygon from breaking
+            min[s] = sMin !== null ? sMin : 0;
+            max[s] = sMax !== null ? sMax : 0;
         }
-        min[s] = sMin !== null ? sMin : 0;
-        max[s] = sMax !== null ? sMax : 0;
+        return { min, max };
     }
-    return { min, max };
-}
-
-getTightOffsets(startFret, scaleST, rootIdx) {
-    const min = [];
-    const max = [];
-
-    for (let s = 0; s < 6; s++) {
-        const stringPitch = StringBasePitches[s];
-        let sMin = null;
-        let sMax = null;
-
-        for (let offset = -1; offset <= 3; offset++) {
-            const f = startFret + offset;
-            
-            // FAKE FRET LOGIC:
-            // (f + 12) % 12 turns -1 into 11, 0 into 0, 13 into 1...
-            const virtualFret = (f + 12) % 12; 
-            
-            const pitch = stringPitch + virtualFret;
-            const dist = (pitch - rootIdx + 120) % 12;
-
-            if (scaleST.includes(dist)) {
-                if (sMin === null) sMin = offset;
-                sMax = offset;
-            }
-        }
-        // If no notes are found, we default to 0 to prevent the polygon from breaking
-        min[s] = sMin !== null ? sMin : 0;
-        max[s] = sMax !== null ? sMax : 0;
-    }
-    return { min, max };
-}
     
     drawFullFretboardMap(rootNoteName, scaleST) {
         const rootIdx = NOTES.indexOf(rootNoteName);

@@ -209,7 +209,7 @@ const KeyboardVariant = {
             stayOnChallenge: true
         });
         if (isCorrect){
-            if (engine.score>=178) {
+            if (engine.score>=178 && engine.livesLeft<3) {
                 engine.incrementLives(1);
                 engine.addLabel("❤",
                         { duration: .75, size:25, x:coords.x, y:coords.y,

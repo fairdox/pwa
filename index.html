@@ -521,8 +521,9 @@ class FretboardEngine {
     }
 
     incrementLives(inc=1,max=3) {
-        if (inc!=0)
-            this.livesLeft = (this.livesLeft+inc+max+1) % (max+1); // from 0 to  10 lives 
+        this.livesLeft +=inc;
+        if (this.livesLeft>max) this.livesLeft=max;
+        if (this.livesLeft<0) this.livesLeft=0;
         const char="❤";
         this.livesLabel.text = char.repeat(this.livesLeft);
         return this.livesLeft; // when 0 , game's over

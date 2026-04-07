@@ -164,7 +164,7 @@ const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const StringBasePitches = [40, 45, 50, 55, 59, 64]; 
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
 const MARKERS = [3, 5, 7, 9, 12];
-const ROYGBIV = [ "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#8B00FF","#8B00FF" ];
+
 const CAGED_DATA = {
     "C": { color: "#FF4500", min: [0, 0, 0, 0, 1, 0], max: [3, 3, 2, 2, 3, 3] }, // Orange-Red
     "A": { color: "#1E90FF", min: [0, 0, 0, 0, 0, 0], max: [3, 2, 2, 2, 3, 3] }, // Dodger Blue
@@ -268,7 +268,8 @@ class FretboardEngine {
         }
 
         window.addEventListener('resize', () => this.resize());
-        this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e), {passive: false});
+        this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e), { passive: false });
+        this.canvas.addEventListener('mousedown', (e) => this.handleTouch(e));
         this.resize();
 
         const display = document.getElementById('game-info-display');
@@ -459,9 +460,20 @@ class FretboardEngine {
         e.preventDefault();
     
         const rect = this.canvas.getBoundingClientRect();
-        
-        const tx = Math.round(e.touches[0].clientX - rect.left) 
-        const ty = Math.round(e.touches[0].clientY - rect.top);
+        let clientX, clientY;
+
+        if (e.touches && e.touches.length > 0) {
+            // It is a touch event
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            // It is a mouse event
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+
+        const tx = Math.round(clientX - rect.left);
+        const ty = Math.round(clientY - rect.top);
         this.lastTapX = tx;
         this.lastTapY = ty;
         this.tapCircleRadius = 20; // Reset the radius for the visual effect
@@ -1018,7 +1030,7 @@ class FretboardEngine {
                 if (matchIdx !== -1) {
                     const pos = this.getFretCenter(s, f);
                     let label = drawNoteNames ? noteName : formula[matchIdx];
-                    const color = this.getIntervalColor(rawDist);
+                    const color = this.getIntervalColor(semitones[matchIdx]);
 
                     if (tapped || !drawTappedOnly){
                         this.ctx.fillStyle =color;
@@ -1310,7 +1322,7 @@ class FretboardEngine {
             this.variant.startTime = Date.now(); 
         }
     }
-    getWorstCombos(limit, exclude = null) {
+    getWorstCombos(limit, exclude = null, snum = null) {
         let unplayed = [], played = [];
         
         // Helper to check if this specific note should be skipped
@@ -1325,7 +1337,9 @@ class FretboardEngine {
                 else played.push(item);
             });
         } else {
-            for (let s = 0; s < 6; s++) {
+            const sStart = snum ? snum : 0;
+            const sEnd = snum ? snum+1 : 6;
+            for (let s = sStart; s < sEnd; s++) {
                 NOTES.forEach(n => {
                     if (isExcluded(n)) return; // Skip the excluded note
                     const score = this.stats[`${this.statKey}${s}-${n}`] ?? -1;
@@ -1456,6 +1470,7 @@ function switchGame(type) {
     if (game.variant) saveVariantState(game.variant);
     if (type === 'section' ) {
         game.variant = SectionVariant;
+        game.autoPauseDuration = 3600000;
     }
     else if (type === 'single'  ) {
         game.variant = SingleStringVariant;

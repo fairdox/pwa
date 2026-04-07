@@ -1,25 +1,25 @@
 const KeyboardHelper = {
     // Generate the two-row layout you provided
-    initButtons(engine, variant) {
-        variant.buttons = [];
+    initButtons(engine, variant, id=101) {
+        if (!variant.buttons) variant.buttons = [];
         const w = engine.canvas.width;
         const h = engine.canvas.height;
-        const bottom_y = h*0.90;
+        const bottom_y = h * 0.90;
 
         const uiprop = engine.uiprop;
-        
+
         const bw = uiprop.btnW, bh = uiprop.btnH, gap = uiprop.btnGap;
         const totalWhiteKeys = 7;
         const whiteRowWidth = (totalWhiteKeys * bw) + ((totalWhiteKeys - 1) * gap);
-        
+
         // Start X for the white keys (centered)
         const startXWhite = (w - whiteRowWidth) / 2;
-        const startYWhite = bottom_y-bh; // Bottom row y
+        const startYWhite = bottom_y - bh; // Bottom row y
         const startYBlack = startYWhite - (bh + gap); // Top row
-    
+
         // 1. Define White Keys (C to B)
-        const whiteNotes =["C", "D", "E", "F", "G", "A", "B"] ;
-        
+        const whiteNotes = ["C", "D", "E", "F", "G", "A", "B"];
+
         whiteNotes.forEach((note, i) => {
             variant.buttons.push({
                 x: startXWhite + i * (bw + gap),
@@ -29,9 +29,11 @@ const KeyboardHelper = {
                 color: "#aaa",
                 toggleState: null,
                 fntSize: engine.uiprop.keybfntsize,
+                hidden: false,
+                id: id
             });
         });
-        
+
         // 2. Define Black Keys with Mode-aware labels
         const blackKeys = [
             { note: "C#", slot: 0.5 },
@@ -50,12 +52,14 @@ const KeyboardHelper = {
                 color: "#333",
                 toggleState: null,
                 fntSize: engine.uiprop.keybfntsize,
+                hidden: false,
+                id: id
             });
         });
     },
 
-    addFunctionButton(engine, variant, label, x=0, y=0, color="#666",
-                      callback=null, toggleState=null,width, height, fntSize) {
+    addFunctionButton(engine, variant, label, x = 0, y = 0, color = "#666",
+        callback = null, toggleState = null, width, height, fntSize) {
         const uiprop = engine.uiprop;
         const newButton = {
             x: x,
@@ -68,13 +72,13 @@ const KeyboardHelper = {
             toggleState,
             clickTime: null,
             hidden: false,
-            fntSize:  fntSize === undefined ?  engine.uiprop.fctfntsize : fntSize,
+            fntSize: fntSize === undefined ? engine.uiprop.fctfntsize : fntSize,
         };
 
         variant.buttons.push(newButton);
         return newButton;
     },
-    
+
     updateButtonAttribute(button, attributes) {
         if (button && typeof attributes === 'object') {
             Object.assign(button, attributes);
@@ -83,11 +87,11 @@ const KeyboardHelper = {
 
     addArrowKeys(engine, variant, options = {}) {
         const uiprop = engine.uiprop;
-        const { 
-            x = engine.canvas.width / 2, 
-            y = 18, 
-            color = "green", 
-            size = 24, 
+        const {
+            x = engine.canvas.width / 2,
+            y = 18,
+            color = "green",
+            size = 24,
             horizontal = false,    // arrows on the same y with label in between
             btnw = uiprop.arrowbtnw,
             btnh = uiprop.arrowbtnh,
@@ -98,35 +102,52 @@ const KeyboardHelper = {
             fct1 = null,
             fct2 = null,
         } = options;
-        
+
         const h = engine.canvas.height;
         const w = engine.canvas.width;
-        let x1=0,x2=0;xlbl=0;
-        let y1=0,y2=0;ylbl=0;
-        if (horizontal){
-            x1=x-hgap-(labelWidth/2)-btnw;
-            x2=x+hgap+(labelWidth/2)+hgap;
-            y1=y;
-            y2=y;
-            xlbl=x;
-            ylbl=y1+(labelHeight/2);
-        }else{
-            x1=x;
-            x2=x1;
-            y1=y;
-            y2=y+btnh+vgap+labelHeight+vgap;
-            xlbl=x+(btnw/2);
-            ylbl=y1+btnh+vgap+(labelHeight/2);
+        let x1 = 0, x2 = 0; xlbl = 0;
+        let y1 = 0, y2 = 0; ylbl = 0;
+        if (horizontal) {
+            x1 = x - hgap - (labelWidth / 2) - btnw;
+            x2 = x + hgap + (labelWidth / 2) + hgap;
+            y1 = y;
+            y2 = y;
+            xlbl = x;
+            ylbl = y1 + (labelHeight / 2);
+        } else {
+            x1 = x;
+            x2 = x1;
+            y1 = y;
+            y2 = y + btnh + vgap + labelHeight + vgap;
+            xlbl = x + (btnw / 2);
+            ylbl = y1 + btnh + vgap + (labelHeight / 2);
         }
 
-        const up=this.addFunctionButton(engine, variant, "^", x1, y1, "#555", fct1, null, btnw, btnh); 
-        const label=engine.addLabel("xxxxxx",
-                    { color:"#999", duration: -1, size:uiprop.arrowfntsize, x:xlbl, y:ylbl});
-        
-        const down=this.addFunctionButton(engine, variant, "v", x2, y2, "#555", fct2, null, btnw, btnh); 
+        const up = this.addFunctionButton(engine, variant, "^", x1, y1, "#555", fct1, null, btnw, btnh);
+        const label = engine.addLabel("xxxxxx",
+            { color: "#999", duration: -1, size: uiprop.arrowfntsize, x: xlbl, y: ylbl });
 
-        return {up,label,down};
+        const down = this.addFunctionButton(engine, variant, "v", x2, y2, "#555", fct2, null, btnw, btnh);
+
+        return { up, label, down };
     },
+
+    addOptionKey(engine, variant, fretnum, text, leftSide = false) {
+        const w = engine.canvas.width;
+        const pos = engine.getFretCoordinates(0, fretnum);
+        const pad = engine.uiprop.sidePadding;
+        const btnw = engine.uiprop.arrowbtnw;
+        const optbtnw = engine.uiprop.optbtnW;
+        const optbtnh = engine.uiprop.optbtnH;
+        const lpad = pad;
+        const rpad = pad + optbtnw;
+        const btn = KeyboardHelper.addFunctionButton(engine, variant, text,
+            leftSide ? lpad : w - rpad,
+            pos.y, "#682",
+            null, false, optbtnw, optbtnh);
+        return btn;
+    },
+
 
     addFunctionKeys(engine, variant, arrows=true){
         const h = engine.canvas.height;
@@ -169,8 +190,8 @@ const KeyboardHelper = {
         return {btnopt,btnHint,btnClear};
     },
 
-    initDynamicMasterPalette(engine, variant) {
-        variant.buttons = [];
+    initDynamicMasterPalette(engine, variant, id=202) {
+        if (!variant.buttons) variant.buttons = [];
         const uiprop = engine.uiprop;
         const btnW = uiprop.btnW,
             btnH = uiprop.btnH,
@@ -191,7 +212,7 @@ const KeyboardHelper = {
             const row = Math.floor(i / cols);
             
             // Visual logic: highlight intervals that are in the CURRENT chord
-            const isInCurrentChord = variant.formula.includes(interval);
+            const isInCurrentChord = variant.formula ? variant.formula.includes(interval): false;
             
             variant.buttons.push({
                 x: startX + col * (btnW + gap),
@@ -201,8 +222,25 @@ const KeyboardHelper = {
                 note: interval,
                 // If it's in the chord, give it a subtle border or different shade
                 color: interval === "1" ? "#cc0000" : (isInCurrentChord ? "#666" : "#333"),
-                borderColor: isInCurrentChord ? "gold" : "transparent"
+                borderColor: isInCurrentChord ? "gold" : "transparent",
+                hidden: false,
+                id: id
+
             });
+        });
+    },
+
+    
+    hideButtons(variant, id) {
+        const btns = variant.buttons.filter(b => b.id === id);
+        btns.forEach(btn => {
+            btn.hidden = true;
+        });
+    },
+    showButtons(variant, id) {
+        const btns = variant.buttons.filter(b => b.id === id);
+        btns.forEach(btn => {
+            btn.hidden = false;
         });
     },
 

@@ -18,7 +18,7 @@ function saveVariantState(variant) {
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(master));
-}
+}3
 
 /**
  * Restores saved data into the variant before init() runs.
@@ -78,6 +78,7 @@ const ExtremeAccidentalVariant = {
         this.userAttempt = null;
         this.startTime = Date.now();
         this.skipHeatMap = true;
+        engine.score = 100;
     },
 
     onTap(engine, s, f, name, x, y) {
@@ -96,9 +97,11 @@ const ExtremeAccidentalVariant = {
             isCorrect: isCorrect,
             relPos: diff 
         };
+        
 
         engine.processResult(isCorrect, {
-            visualX: x, visualY: y, noteName: btn.note, distance: 0
+            visualX: x, visualY: y, noteName: btn.note, distance: 0,
+            stayOnChallenge: !isCorrect               // continue if not correct
         });
     },
 
@@ -251,7 +254,8 @@ const CHORD_FORMULAS = [
     { label: "Sus2 Chord", formula: ["1", "2", "5"], semitones: [0, 2, 7] },
     { label: "Major 6th", formula: ["1", "3", "5", "6"], semitones: [0, 4, 7, 9] },
     { label: "Minor 6th", formula: ["1", "b3", "5", "6"], semitones: [0, 3, 7, 9] },
-    { label: "9th ", formula: ["1", "3", "5", "b7", "9"], semitones: [0, 4, 7, 10, 14] }, 
+    { label: "9th ",  formula: ["1", "3", "5", "b7", "9"], semitones: [0, 4, 7, 10, 14] }, 
+    { label: "11th ", formula: ["1", "3", "5", "b7", "9", "11"], semitones: [0, 4, 7, 10, 14, 17] }, 
     { label: "Add9 (Maj 9th)", formula: ["1", "3", "5", "9"], semitones: [0, 4, 7, 14] }, 
     { label: "+9 (aug 9th)", formula: ["1", "3", "5", "b7", "#9"], semitones: [0, 4, 7, 10, 15] }, 
     { label: "Diminished", formula: ["1", "b3", "b5"], semitones: [0, 3, 6] },
@@ -291,52 +295,59 @@ function getUniqueIntervals(formulas) {
 const IntervalVariant = {
     label:"",
     statKey: "W1",
-    mode: 0,
     init(engine) {
-        this.rootIdx = Math.floor(Math.random() * 12);
-        this.rootNote = NOTES[this.rootIdx];
-        
-        const type = CHORD_FORMULAS[Math.floor(Math.random() * CHORD_FORMULAS.length)];
-        this.chordLabel = type.label;
-        this.formula = type.formula;
-        this.semitones = type.semitones;
+        this.buttons = [];
+        this.btnOptMode = KeyboardHelper.addOptionKey(engine, this, 6, "1|A");
+        KeyboardHelper.initButtons(engine, this, 101);
+        KeyboardHelper.initDynamicMasterPalette(engine, this,202);
+        const objects = KeyboardHelper.addFunctionKeys(engine, this, false);
+        objects.btnClear.hidden = true;
+        this.initGame(engine);
 
-        const w = engine.canvas.width;
-        const h = engine.canvas.height;
-        const pad = engine.uiprop.sidePadding;
-        if (this.mode === 1) {
-            KeyboardHelper.initDynamicMasterPalette(engine, this);
-        } else {
-            KeyboardHelper.initButtons(engine, this);
-        }
-
-        const objects = KeyboardHelper.addFunctionKeys(engine,this, false);
-        objects.btnClear.hidden=true;
-        this.targetIdx = Math.floor(Math.random() * (this.formula.length - 1)) + 1;
-        this.targetInterval = this.formula[this.targetIdx]; 
-        this.targetNoteName = NOTES[(this.rootIdx + this.semitones[this.targetIdx]) % 12];
-        
-        const prompt = this.mode === 0 ? 
-            `Find the missing note` : 
-            `What is the role of ${this.targetNoteName}?`;
-        engine.addLabel(prompt, { duration: -1, y: 80 });
-        this.showHints=false;
-        this.userAttempt = null;
-        this.startTime = Date.now();
     },
     
     hints(engine){
         this.showHints = ! this.showHints;
     },
     
-    switchMode(engine){
-        this.mode = this.mode === 0 ? 1 : 0;
-        setTimeout(() => engine.reset(true), 100);
+    initGame(engine) {
+        this.mode = this.btnOptMode.toggleState ? 1 : 0;
+        if (this.mode === 1) {
+            KeyboardHelper.showButtons(this,202);
+            KeyboardHelper.hideButtons(this,101);
+        } else {
+            KeyboardHelper.hideButtons(this,202);
+            KeyboardHelper.showButtons(this,101);
+        }
+            
+        this.rootIdx = Math.floor(Math.random() * 12);
+        this.rootNote = NOTES[this.rootIdx];
+
+        const type = CHORD_FORMULAS[Math.floor(Math.random() * CHORD_FORMULAS.length)];
+        this.chordLabel = type.label;
+        this.formula = type.formula;
+        this.semitones = type.semitones;
+
+        this.targetIdx = Math.floor(Math.random() * (this.formula.length - 1)) + 1;
+        this.targetInterval = this.formula[this.targetIdx];
+        this.targetNoteName = NOTES[(this.rootIdx + this.semitones[this.targetIdx]) % 12];
+
+        const prompt = this.btnOptMode.toggleState ?
+            `What is the role of ${this.targetNoteName}?` :
+            `Find the missing note`;
+        engine.addLabel(prompt, { duration: -1, y: 80 });
+        this.showHints = false;
+        this.userAttempt = null;
+        this.startTime = Date.now();
     },
 
     onTap(engine, s, f, name, x, y) {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);
         if (!btn) return;
+        if (btn === this.btnOptMode) {
+            setTimeout(() => this.initGame(engine), 100);
+            return;
+        }
 
         // Logic Check: Mode 0 looks for Note Name, Mode 1 looks for Interval String
         const isCorrect = this.mode === 0 ? 
@@ -354,13 +365,19 @@ const IntervalVariant = {
         };
 
         engine.processResult(isCorrect, {
-            visualX: x, visualY: y, noteName: btn.note, distance: 0
+            visualX: x, visualY: y, noteName: btn.note, distance: 0,
+            stayOnChallenge: true
         });
 
         engine.addLabel(isCorrect ? "Correct!" : "Try again", { 
             color: isCorrect ? "green" : "red", 
             duration: 1 
         });
+        if (isCorrect) {
+            setTimeout(() => this.initGame(engine), 500);
+            return;
+        }
+
     },
 
     render(engine) {
@@ -431,71 +448,80 @@ const SectionVariant = {
     sectionSeq: 0,
     range: null,
     statKey: "Se",
-    sections: [[1,12],[1, 4], [5, 8], [9, 12],[1,7],[5,12]],
+    sections: [[1,4], [5, 8], [8, 12],[1,6],[6,9]],
     init(engine) {
         this.buttons=[];
         const w = engine.canvas.width;
         const h = engine.canvas.height;
-        const btnw = 75;
-        const btnh = 33;
+        const scale = engine.uiprop.scale;
+        const btnw = scale * 75;
+        const btnh = scale * 33;
         KeyboardHelper.addFunctionButton(engine, this, "Section", w-btnw-5, h-btnh-10, "#682",
                                          () => this.incrementSection(engine,1),null,btnw, btnh);
 
-        this.incrementSection(engine,0);
+
+        this.btnOptRandom = KeyboardHelper.addOptionKey(engine, this, 6, "🎲");
+        this.incrementSection(engine, 0);
     },
     
-    incrementSection(engine,inc=1, reset=true){
+    incrementSection(engine, inc = 1, reset = true) {
+        this.btnOptRandom.toggleState = false; // now we are not doing random mode anymore
         this.sectionSeq+=inc;
         if (this.sectionSeq<0) this.sectionSeq=this.sections.length-1;
         if (this.sectionSeq>this.sections.length-1) this.sectionSeq=0
-        this.range = this.sections[this.sectionSeq];
         if (reset) this.initGame(engine);
     },
     initGame(engine){
-        const candidates = engine.getWorstCombos(5,this.targetNote);
-        const selection = candidates[Math.floor(Math.random() * candidates.length)]; 
+        if (this.btnOptRandom.toggleState) { // select random section
+            this.sectionSeq = Math.floor(Math.random() * this.sections.length);
+        }
+        this.range = this.sections[this.sectionSeq];
+        const candidates = engine.getWorstCombos(5, this.targetNote, this.sectionSeq);
+        const selection = candidates[Math.floor(Math.random() * candidates.length)];
         this.targetNote = selection.note;
+
         this.foundCount = 0;
         this.needed = this.calculateNeeded();
         this.startTime = Date.now();
         this.tapTime = Date.now();
-        this.noStringStat = true;
-        this.cumulScore=0;
+        this.cumulScore = 0;
         engine.score = 100;
-        engine.mistakes=0;
+        engine.mistakes = 0;
+        engine.tappedKeys.clear();
+        engine.history = []; // Clears the colored dots on the fretboard
         this.label = `FIND ALL ${this.needed} \"${this.targetNote}\" IN FRET ${this.range[0]} TO ${this.range[1]} `;
-   
+        engine.gameActive = true;  
     },
     onTap(engine, s, f, name, x, y) {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);  
         if (f < this.range[0] || f > this.range[1]) return;
         const coords = engine.getFretCoordinates(s, f);
 
-        let stay = true;
-        if (name === this.targetNote) {
-            this.foundCount++;
-            if (this.foundCount >= this.needed){
-                stay=false;
-                if (engine.mistakes === 0) {
-                    engine.triggerPerfect("PERFECT! +25");
-                    engine.score += 25;
-                }
-                
-            }
-        }
-        
-        engine.processResult(name === this.targetNote, {
+        const isCorrect = (name === this.targetNote);
+
+        engine.processResult(isCorrect, {
             visualX: coords.x, 
             visualY: coords.y, 
-            sIdx: "", // string index not important in this game stats 
+            sIdx: this.sectionSeq, // Section Id used instead of string number in this game stats 
             noteName: name,
-            distance: Math.abs(f - this.targetFret),
-            stayOnChallenge: stay 
+            stayOnChallenge: true
         });
 
-        if (name === this.targetNote){
+        if (isCorrect) {
+            this.foundCount++;
+            if (this.foundCount >= this.needed) {
+                if (engine.mistakes === 0) {
+                    //engine.triggerPerfect("PERFECT! +25");
+                    engine.score += 25;
+                }
+            }
             this.cumulScore += engine.score;
-            engine.score = Math.round(this.cumulScore/ this.needed);
+            engine.score = Math.round(this.cumulScore / this.needed);
+            if (this.foundCount >= this.needed) {
+                engine.gameActive = false;
+                setTimeout(() => this.initGame(engine), 1000);
+            }
+
         }
     },
 
@@ -696,7 +722,7 @@ const ChordCompletionVariant = {
                 } 
                 engine.processResult(true, {
                     visualX: x, visualY: y, noteName: noteName, sIdx: sIdx,
-                    color: ROYGBIV[slotIdx],
+                    color: engine.getIntervalColor(this.semitones[slotIdx]),
                     stayOnChallenge: true 
                 });
                 this.foundNotes[slotIdx] = noteName;
@@ -753,7 +779,7 @@ const ChordCompletionVariant = {
 
             // If note found, draw it with its ROYGBIV color
             if (foundNote) {
-                ctx.fillStyle = ROYGBIV[i];
+                ctx.fillStyle = engine.getIntervalColor(this.semitones[i]);
                 ctx.font = "bold 20px sans-serif";
                 ctx.fillText(foundNote, x + sqSize/2, sqY + sqSize/2 + 7);
             }

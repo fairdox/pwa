@@ -18,9 +18,9 @@ const ScalePathVariant = {
         const scale = uiprop.scale;
         const pad = uiprop.sidePadding;
 
-        // horizontal arrows in bottom of the screen for changing the scale 
+        // horizontal arrows at the bottom of the screen for changing the scale 
         const kobj=KeyboardHelper.addArrowKeys(engine,this,
-                                    {x:w/2, y: h*0.9, horizontal: true,
+                                    {x:w/2, y: h-(scale*35), horizontal: true,
                                      btnh: scale*25, btnw: scale*40,
                                      fct1: ()=>  this.incrementScale(engine,+1),
                                      fct2: ()=>  this.incrementScale(engine,-1),
@@ -31,12 +31,14 @@ const ScalePathVariant = {
         this.btnopt.hidden=true;
         this.rootNoteLabel = objects.arrowsL.label;
         this.fretBoxLabel = objects.arrowsR.label;
-        this.showShapeBtn = KeyboardHelper.addFunctionButton(engine, this, "🧩",  pad, h*1/3,
+        let pos = engine.getFretCoordinates(0,3);
+        this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "🔊", pad, pos.y,
+                                                             "#484",null, false,scale*30,scale*25,18);
+
+        pos = engine.getFretCoordinates(0,4);
+        this.showShapeBtn = KeyboardHelper.addFunctionButton(engine, this, "🧩",  pad, pos.y,
                                                              "#484",null, false,scale*30,scale*25,18);
         
-        this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "🔊",
-                                                             pad, h*1/3-this.showShapeBtn.h-pad*2,
-                                                             "#484",null, false,scale*30,scale*25,18);
         
         this.rootIdx=0;
         this.selectedTopFret=0;
@@ -127,6 +129,10 @@ const ScalePathVariant = {
         }
         const pitch = StringBasePitches[s] + f;
         if (this.playBtn.toggleState){
+            if (!engine.audioUnlocked) {
+                engine.audio.resume(); // Unlocks audio on first click
+                engine.audioUnlocked = true;
+            }
             engine.audio.playNote(pitch);
         }
 

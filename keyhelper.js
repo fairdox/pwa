@@ -4,13 +4,14 @@ const KeyboardHelper = {
         if (!variant.buttons) variant.buttons = [];
         const w = engine.canvas.width;
         const h = engine.canvas.height;
-        const bottom_y = h * 0.90;
 
         const uiprop = engine.uiprop;
-
         const bw = uiprop.btnW, bh = uiprop.btnH, gap = uiprop.btnGap;
+        const scale = uiprop.scale;
         const totalWhiteKeys = 7;
         const whiteRowWidth = (totalWhiteKeys * bw) + ((totalWhiteKeys - 1) * gap);
+        const bottom_y = h - (scale * 70);
+
 
         // Start X for the white keys (centered)
         const startXWhite = (w - whiteRowWidth) / 2;
@@ -154,26 +155,26 @@ const KeyboardHelper = {
         const w = engine.canvas.width;
  
         const labelWidth = 60;
-        let pos = engine.getFretCoordinates(0,11);
         const pad = engine.uiprop.sidePadding;
         const btnw = engine.uiprop.arrowbtnw;
         const optbtnw = engine.uiprop.optbtnW;
         const optbtnh = engine.uiprop.optbtnH;
         const lpad = pad ;
         const rpad = pad + optbtnw;
-
-        const btnopt=KeyboardHelper.addFunctionButton(engine, variant, "1|A", lpad, pos.y, "#682",
-                                         null,false);
-        btnopt.hidden=true;
-        
-        pos = engine.getFretCoordinates(0,2);
+      
+        let pos = engine.getFretCoordinates(0,1);
         const btnHint=KeyboardHelper.addFunctionButton(engine, variant, "✨", lpad, pos.y, "#682",
                                          () => variant.hints(engine),false,optbtnw,optbtnh); // hint button
         const btnClear=KeyboardHelper.addFunctionButton(engine, variant, "✕", w-rpad, pos.y, "#A82",
                                          () => variant.initGame(engine),null,optbtnw,optbtnh); // clear button
 
+        pos = engine.getFretCoordinates(0,2);
+        const btnopt=KeyboardHelper.addFunctionButton(engine, variant, "1|A", lpad, pos.y, "#682",
+                                         null,false);
+        btnopt.hidden=true;
+
         if (arrows){
-            pos = engine.getFretCoordinates(0,5);
+            pos = engine.getFretCoordinates(0,6);
             const arrowsL=KeyboardHelper.addArrowKeys(engine,variant,
                                         {x:pad, y:pos.y, 
                                          fct1: ()=>  variant.incrementRoot(engine,+1),

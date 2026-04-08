@@ -118,7 +118,7 @@
         <button onclick="switchGame('section')">Find note in section</button>
         <button onclick="switchGame('single')">Find note in a string</button>
         <button onclick="switchGame('chords')">Chord Builder</button>
-        <button onclick="switchGame('SemSearch')">Semitone search</button>      
+        <button onclick="switchGame('IntSearch')">Interval search</button>      
         <button onclick="switchGame('show')">Fretboard slideshow</button>
         <button onclick="switchGame('scales1')">Scales</button>       
         <hr>
@@ -155,9 +155,9 @@
     </div>
 
 </div>
-<script src="variants.js?v=1.821"></script>
-<script src="scales.js?v=1.06"></script>
-<script src="keyhelper.js?v=1.06"></script>
+<script src="variants.js?v=1.824"></script>
+<script src="scales.js?v=1.09"></script>
+<script src="keyhelper.js?v=1.09"></script>
 
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -216,9 +216,6 @@ class FretboardEngine {
     constructor(canvas) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
-        this.marginX = 25;
-        this.marginTop = 40; 
-        this.marginBottom = 60;
         this.fretPositions = [];
         this.variant = null;
         
@@ -255,6 +252,7 @@ class FretboardEngine {
         this.lastTapY = null;
         this.tapCircleRadius = 0; // For a little "ripple" effect
         this.statKey= null; // begining of statistics key should be different for each game
+        this.audioUnlocked=false;
         this.audio = new AudioController();
         this.HighlightFrets=null;
         
@@ -279,11 +277,14 @@ class FretboardEngine {
     resize() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
-        this.calculateFrets();
         const designWidth = 390, designHeight = 797; 
         this.scale = this.canvas.width / designWidth;
         this.scaleH = this.canvas.height / designHeight;
         this.setUIProportions();
+        this.marginX = 25 * this.scale;
+        this.marginTop = 60 * this.scale; 
+        this.marginBottom = 60 * this.scale;
+        this.calculateFrets();
     }
 
     setUIProportions() {
@@ -454,7 +455,6 @@ class FretboardEngine {
             this.reset(true);
             return;
         }
-    
         this.lastTapTime = Date.now();
         if ( this.isPaused) return;
         e.preventDefault();
@@ -1396,13 +1396,13 @@ class FretboardEngine {
         ctx.textAlign = "right";
         ctx.font = "bold 14px monospace";
         ctx.fillStyle = "#FFD700";
-        let y = 50; // Starting vertical position
+        let y = 30; // Starting vertical position
         const lineHeight = 15;
         
         // Header Stats
         ctx.textAlign = "right";
         ctx.font = "bold 14px monospace";
-        ctx.fillStyle = "#FFD700";
+        ctx.fillStyle = "#FFD700"+"66";
         ctx.fillText(`Average     : ${this.avg}`, w - 10, y); y += lineHeight;
         ctx.fillText(`React. time : ${(this.avgReactionTime || 0).toFixed(1)}`, w - 10, y);
 
@@ -1436,16 +1436,12 @@ const game = new FretboardEngine(document.getElementById('fretboard'));
 
 function toggleMenuPage(show) {
     document.getElementById('optionsMenuPage').style.display = show ? 'block' : 'none';
-    game.isPaused = show;
     if (show) {
         document.getElementById('debugToggle').checked = game.showDebug;
         document.getElementById('cheatToggle').checked = game.showNotes;
         document.getElementById('historyToggle').checked = game.showHistory;
         document.getElementById('permission3D').checked = game.show3D;
-        game.pauseTime = Date.now();
-    } else if (game.variant && game.variant.startTime) {
-        game.variant.startTime += (Date.now() - game.pauseTime);
-    }
+    } 
 }
 
 async function requestOrientation(show) {
@@ -1494,9 +1490,9 @@ function switchGame(type) {
     else if (type === 'chords') {
         game.variant = ChordCompletionVariant;
         game.autoPauseDuration=3600000;
-        game.viewHeightFactor=0.84;
+        game.viewHeightFactor=0.90;
     }    
-    else if (type === 'SemSearch') {
+    else if (type === 'IntSearch') {
         game.variant = IntervalSearchVariant;
         game.autoPauseDuration=3600000;
         game.viewHeightFactor=0.97;
@@ -1508,7 +1504,6 @@ function switchGame(type) {
     else if (type === 'scales1') {
         game.variant = ScalePathVariant;
         game.autoPauseDuration=3600000;
-        game.viewHeightFactor=0.95;
     }  
     
     game.calculateFrets() 
@@ -1517,12 +1512,17 @@ function switchGame(type) {
 }
 
 function toggleMenu(isOpen) {
-    game.audio.resume(); // Unlocks audio on first click
     const menu = document.getElementById('sideMenu');
     if (isOpen) {
+        game.isPaused = true;
+        game.pauseTime = Date.now();
         menu.classList.add('active');
     } else {
         menu.classList.remove('active');
+        game.isPaused = false;
+        if (game.variant && game.variant.startTime) {
+            game.variant.startTime += (Date.now() - game.pauseTime);
+        }
     }
 }
 

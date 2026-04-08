@@ -651,13 +651,32 @@ const ChordCompletionVariant = {
         this.chordIdx = (this.chordIdx + inc + len) % len;
         const type = CHORD_FORMULAS[this.chordIdx];
         this.chordLabel.text = ""; // chord name too long for vertical arrow space
-        const pos = engine.getFretCoordinates(0,12);
-        engine.addLabel(`${type.label}`,
-                        { color:"#666", duration: -1, size:25, x:w/2, y:pos.y+30});
+        this.cordTypeLabel.text=type.label;
         this.formula = type.formula;
         this.semitones = type.semitones;
         this.semitones=this.semitones.map(s => s % 12); // to normalize somitones that are > 12 
         if (reset) this.initGame(engine);
+    },
+
+    init(engine) {
+        const w = engine.canvas.width;
+        const h = engine.canvas.height;
+        const scale = engine.uiprop.scale;
+        this.rootIdx=0;
+        this.chordIdx=0;
+        restoreVariantState(this);
+        this.showHints = false;
+        this.buttons=[];
+        const objects = KeyboardHelper.addFunctionKeys(engine,this);
+        this.rootNoteLabel = objects.arrowsL.label;
+        this.chordLabel = objects.arrowsR.label;
+        const pos = engine.getFretCoordinates(0,12);
+        this.cordTypeLabel = engine.addLabel("", {color:"#666", duration: -1, size:25,
+             x:w/2, y:pos.y+50*scale});
+        engine.addLabel("Use arrows to change chords", {color:"green", size:16, duration:-1});
+
+        this.incrementRoot(engine,0,false);
+        this.incrementChord(engine,0,true);
     },
 
     initGame(engine){
@@ -676,20 +695,6 @@ const ChordCompletionVariant = {
         engine.score = 0;
     },
     
-    init(engine) {
-        this.rootIdx=0;
-        this.chordIdx=0;
-        restoreVariantState(this);
-        this.showHints = false;
-        this.buttons=[];
-        const objects = KeyboardHelper.addFunctionKeys(engine,this);
-        this.rootNoteLabel = objects.arrowsL.label;
-        this.chordLabel = objects.arrowsR.label;
-        this.incrementRoot(engine,0,false);
-        this.incrementChord(engine,0,true);
-        engine.addLabel("Use arrows to change chords", {color:"green", size:16, duration:-1});
-    },
-
     onTap(engine, sIdx, f, noteName, x, y) {
 
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);     
@@ -758,8 +763,7 @@ const ChordCompletionVariant = {
         const sqSize = 50, gap = 10;
         const totalW = (this.formula.length * sqSize) + ((this.formula.length - 1) * gap);
         let startX = (w - totalW) / 2;
-        const sqY = h - 120;
-
+        const sqY = this.cordTypeLabel.y+30;
         this.formula.forEach((interval, i) => {
             const x = startX + i * (sqSize + gap);
             const foundNote = this.foundNotes[i];

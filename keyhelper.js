@@ -231,6 +231,43 @@ const KeyboardHelper = {
         });
     },
 
+    initChordSelectorPalette(engine, variant, id = 203) {
+        if (!variant.buttons) variant.buttons = [];
+        const uiprop = engine.uiprop;
+        const btnW = uiprop.btnW,
+            btnH = uiprop.btnH *.5,
+            gap = uiprop.btnGap;
+
+        const cols = 6;
+        const rows = Math.ceil(CHORD_FORMULAS.length / cols);
+        
+        const totalW = (cols * btnW) + ((cols - 1) * gap);
+        const totalH = (rows * btnH) + ((rows - 1) * gap);
+        
+        const startX = (engine.canvas.width - totalW) / 2;
+        const startY = (engine.canvas.height - totalH); 
+
+        CHORD_FORMULAS.forEach((chord, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            
+            variant.buttons.push({
+                x: startX + col * (btnW + gap),
+                y: startY + row * (btnH + gap),
+                w: btnW,
+                h: btnH,
+                note: chord.short, // Using the new short name field
+                toggleState: null,
+                color: "#888",
+                formula: chord.formula,
+                semitones: chord.semitones,
+                fullLabel: chord.label,
+                hidden: false,
+                fntSize: engine.uiprop.keybfntsize,
+                id: id
+            });
+        });
+    },
     
     hideButtons(variant, id) {
         const btns = variant.buttons.filter(b => b.id === id);
@@ -281,13 +318,23 @@ const KeyboardHelper = {
             }
     
             // 3. Draw Main Button Body
-            ctx.fillStyle = isPressed ? "#222" : btn.color; // Darken slightly if pressed
+            //ctx.fillStyle = isPressed ? "#222" : btn.color; // Darken slightly if pressed
+            if (isPressed){
+                ctx.fillStyle = "#222";
+            }else{
+                if (btn?.isSelected){
+                    ctx.fillStyle = "#8444bb";
+                } else{
+                    ctx.fillStyle = btn.color;
+                }
+            }
             if (btn.toggleState!==null){
                 ctx.fillStyle = btn.toggleState ? btn.color : "#555";
             }
             ctx.strokeStyle = isPressed ? "#444" : "#999";
             this.roundRect(ctx, bx, by, btn.w, btn.h, 8);
     
+
             // 4. Draw Text with Offset
             ctx.fillStyle = isPressed ? "white" : (btn.color === "#333" ? "white" : "black");
 

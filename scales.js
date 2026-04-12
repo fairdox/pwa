@@ -174,14 +174,13 @@ const ScalePathVariant = {
         if (this.showHints>0){
             if (this.showHints==1)
                 engine.drawChordMap(this.rootNote, this.scaleST, this.scaleFormula ,
-                                    this.startFret , this.endFret, false, drawNoteNames,this.foundNotes);
+                                    {startFret: this.startFret, endFret: this.endFret, drawTappedOnly: false, drawNoteNames: drawNoteNames, tappedList: this.foundNotes});
             else // show hints on the complete fretboard
                 engine.drawChordMap(this.rootNote, this.scaleST, this.scaleFormula,
-                                    0,12, false, drawNoteNames,this.foundNotes);
-                
+                                    {startFret: 0, endFret: 12, drawTappedOnly: false, drawNoteNames: drawNoteNames, tappedList: this.foundNotes});
         }else{
             engine.drawChordMap(this.rootNote, this.scaleST, this.scaleFormula,
-                                0,12, true, drawNoteNames,this.foundNotes);
+                                {startFret: 0, endFret: 12, drawTappedOnly: false, drawNoteNames: drawNoteNames, tappedList: this.foundNotes});
         }
 
         KeyboardHelper.draw(engine, this.buttons);

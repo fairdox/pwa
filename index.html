@@ -117,7 +117,7 @@
         <button onclick="switchGame('interval')">Missing note</button>
         <button onclick="switchGame('section')">Find note in section</button>
         <button onclick="switchGame('single')">Find note in a string</button>
-        <button onclick="switchGame('chords')">Chord Builder</button>
+        <button onclick="switchGame('chords')">Chord Speller</button>
         <button onclick="switchGame('IntSearch')">Interval search</button>      
         <button onclick="switchGame('show')">Fretboard slideshow</button>
         <button onclick="switchGame('scales1')">Scales</button>       
@@ -161,6 +161,9 @@
 
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const SHARP_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const FLAT_NAMES  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];    
+
 const StringBasePitches = [40, 45, 50, 55, 59, 64]; 
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
 const MARKERS = [3, 5, 7, 9, 12];
@@ -1007,50 +1010,90 @@ class FretboardEngine {
     
         return functionalMap[st] || "#FFFFFF";
     }
-    
-    drawChordMap(rootNote, semitones, formula, startFret=0 , endFret=12, drawTappedOnly=false, drawNoteNames=false, tappedList=[]) {
-        const rootPitch = NOTES.indexOf(rootNote);
 
-        const size=16;
+    getChordSpelling(rootNote, semitones, formula) {
+        // 2. Determine flavor (consistent with your drawChordMap logic)
+        const prefersFlats = rootNote === "F" || ["A#", "D#", "G#", "C#"].includes(rootNote);
+        const displayNames = prefersFlats ? FLAT_NAMES : SHARP_NAMES;
+
+        const rootIdx = SHARP_NAMES.indexOf(rootNote);
+        
+        // 3. Map the semitones to the appropriate note names
+        return semitones.map((st) => {
+            const noteIdx = (rootIdx + st + 120) % 12;
+            return displayNames[noteIdx];
+        });
+    }    
+
+    drawChordMap(rootNote, semitones, formula, data) {
+        const {
+            startFret = 0, 
+            endFret = 12, 
+            drawTappedOnly = false, 
+            drawNoteNames = false, 
+            tappedList = [],
+            focus = null
+        } = data;
+
+        // 2. Determine flavor. If root is F, A#, D#, or G#, we use flats.
+        const prefersFlats = rootNote === "F" || ["A#", "D#", "G#"].includes(rootNote);
+        const displayNames = prefersFlats ? FLAT_NAMES : SHARP_NAMES;
+        
+        const rootPitch = NOTES.indexOf(rootNote);
+        const size = 16;
         
         this.ctx.font = `bold ${size}px sans-serif`;
         this.ctx.textAlign = "center";
+
         for (let s = 0; s < 6; s++) {
             for (let f = startFret; f <= endFret; f++) { 
                 const currentPitch = StringBasePitches[s] + f;
-                const relativeSemitone = (currentPitch - rootPitch) % 12;
-                const noteName = NOTES[currentPitch % 12];
                 
-                // Normalize for extensions (like #9 / 15 semitones)
-                // We check both the octave-reduced and the raw semitone
+                // Note: use % 12 on the pitch to get the correct name index
+                const noteName = displayNames[currentPitch % 12];
+                
+                const relativeSemitone = (currentPitch - rootPitch + 120) % 12;
                 const rawDist = currentPitch - rootPitch;
-                const matchIdx = semitones.findIndex(st => st === rawDist || (st % 12 === relativeSemitone));
-                const noteKey = `${s}-${f}`;                   
-                const tapped = tappedList.includes(noteKey);
-                if (matchIdx !== -1) {
-                    const pos = this.getFretCenter(s, f);
-                    let label = drawNoteNames ? noteName : formula[matchIdx];
-                    const color = this.getIntervalColor(semitones[matchIdx]);
+                
+                const matchIdx = semitones.findIndex(st => 
+                    st === rawDist || (st % 12 === relativeSemitone)
+                );
 
-                    if (tapped || !drawTappedOnly){
-                        this.ctx.fillStyle =color;
-                        this.ctx.globalAlpha = tapped ? 0.8: 0.4;
-                        this.ctx.lineWidth = 1;          // Thickness of the circle outline
-                        this.ctx.strokeStyle=color;
-                        this.ctx.beginPath(); this.ctx.arc(pos.x, pos.y, size/2+4, 0, Math.PI * 2);
-                        this.ctx.fill();
-                        this.ctx.globalAlpha = 1;
-                        this.ctx.fillStyle ="white";
-                        this.ctx.fillText(`${label}`, pos.x, pos.y+4);
+                if (matchIdx !== -1) {
+                    const noteKey = `${s}-${f}`;                   
+                    const tapped = tappedList.includes(noteKey);
+                    
+                    // Focus/Alpha Logic
+                    let focusAlpha = 1.0;
+                    if (focus) {
+                        const fretDist = Math.abs(f - focus.fret);
+                        focusAlpha = Math.max(0.05, 1 - (fretDist / 4));
                     }
 
-                }
+                    if (tapped || !drawTappedOnly) {
+                        const pos = this.getFretCenter(s, f);
+                        const color = this.getIntervalColor(semitones[matchIdx]);
+                        
+                        // Use the theoretically correct noteName derived above
+                        let label = drawNoteNames ? noteName : formula[matchIdx];
 
+                        const baseAlpha = tapped ? 0.8 : 0.4;
+                        this.ctx.globalAlpha = baseAlpha * focusAlpha;
+                        
+                        this.ctx.fillStyle = color;
+                        this.ctx.beginPath(); 
+                        this.ctx.arc(pos.x, pos.y, size / 2 + 4, 0, Math.PI * 2);
+                        this.ctx.fill();
+
+                        this.ctx.globalAlpha = focusAlpha;
+                        this.ctx.fillStyle = "white";
+                        this.ctx.fillText(`${label}`, pos.x, pos.y + 4);
+                    }
+                }
             }
         }
         this.ctx.globalAlpha = 1;
     }
-    
     calculateAllShapePositions(rootNoteName) {
         const rootIdx = NOTES.indexOf(rootNoteName);
         const getFret = (stringIdx, targetNoteIdx) => (targetNoteIdx - StringBasePitches[stringIdx] + 120) % 12;
@@ -1495,7 +1538,7 @@ function switchGame(type) {
     else if (type === 'IntSearch') {
         game.variant = IntervalSearchVariant;
         game.autoPauseDuration=3600000;
-        game.viewHeightFactor=0.97;
+        game.viewHeightFactor=0.85;
     } 
     else if (type === 'show') {
         game.variant = SlideShowVariant;
@@ -1537,6 +1580,8 @@ function clearFretStats() {
 
 switchGame('keyboard');
 game.draw();
+
+// to start a server in command line : python -m http.server 8000
 </script>
 </body>
 </html>

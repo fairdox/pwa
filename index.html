@@ -155,9 +155,9 @@
     </div>
 
 </div>
-<script src="variants.js?v=1.824"></script>
-<script src="scales.js?v=1.09"></script>
-<script src="keyhelper.js?v=1.09"></script>
+<script src="variants.js?v=1.829"></script>
+<script src="scales.js?v=1.10"></script>
+<script src="keyhelper.js?v=1.12"></script>
 
 <script>
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -180,6 +180,10 @@ class AudioController {
     constructor() {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.enabled = false;
+        // Create a master gain to prevent clipping
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(0.6, this.ctx.currentTime); 
+        this.masterGain.connect(this.ctx.destination);
     }
 
     // Mobile browsers block audio until the user interacts
@@ -190,27 +194,30 @@ class AudioController {
         this.enabled = true;
     }
 
-    playNote(pitch) {
+
+    // Updated playNote method:
+    playNote(pitch, delay = 0) {
         if (!this.enabled) return;
 
-        // Convert MIDI pitch to Frequency (Hz)
         const freq = 440 * Math.pow(2, (pitch - 69) / 12);
+        const startTime = this.ctx.currentTime + delay;
 
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
-        osc.type = 'triangle'; // Smoother than 'sawtooth', meatier than 'sine'
-        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, startTime);
 
-        // The "Pluck" Envelope
-        gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.5);
+        // Envelope adjusted for the specific start time
+        gain.gain.setValueAtTime(0.3, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, startTime + 1.5);
 
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        // Connect to masterGain instead of destination
+        gain.connect(this.masterGain);
 
-        osc.start();
-        osc.stop(this.ctx.currentTime + 1.5);
+        osc.start(startTime);
+        osc.stop(startTime + 1.5);
     }
 }
     
@@ -1011,36 +1018,57 @@ class FretboardEngine {
         return functionalMap[st] || "#FFFFFF";
     }
 
+    getTheoreticName(rootNote, semitone, intervalFormula, displayNames, prefersFlats) {
+        const rootIdx = NOTES.indexOf(rootNote);
+        const noteIdx = (rootIdx + semitone + 120) % 12;
+        let name = displayNames[noteIdx];
+
+        // Handle Sharp-key special cases (E#, B#)
+        if (!prefersFlats) {
+            if (intervalFormula === "7" && name === "F") return "E#";
+            if (intervalFormula === "7" && name === "C") return "B#";
+            if (intervalFormula === "3" && name === "F") return "E#"; // For C# Major
+        }
+        
+        // Handle Flat-key special cases (Cb)
+        if (prefersFlats) {
+            if (intervalFormula === "b7" && name === "B") return "Cb";
+            if (intervalFormula === "b5" && name === "B") return "Cb";
+        }
+
+        return name;
+    }
+
     getChordSpelling(rootNote, semitones, formula) {
-        // 2. Determine flavor (consistent with your drawChordMap logic)
         const prefersFlats = rootNote === "F" || ["A#", "D#", "G#", "C#"].includes(rootNote);
         const displayNames = prefersFlats ? FLAT_NAMES : SHARP_NAMES;
-
         const rootIdx = SHARP_NAMES.indexOf(rootNote);
         
-        // 3. Map the semitones to the appropriate note names
-        return semitones.map((st) => {
+        return semitones.map((st, i) => {
             const noteIdx = (rootIdx + st + 120) % 12;
-            return displayNames[noteIdx];
+            let name = displayNames[noteIdx];
+            const theoreticName = this.getTheoreticName(
+                rootNote, 
+                semitones[i], 
+                formula[i], 
+                displayNames, 
+                prefersFlats
+            );
+            return theoreticName;
         });
-    }    
+    }
 
     drawChordMap(rootNote, semitones, formula, data) {
         const {
-            startFret = 0, 
-            endFret = 12, 
-            drawTappedOnly = false, 
-            drawNoteNames = false, 
-            tappedList = [],
-            focus = null
+            startFret = 0, endFret = 12, drawTappedOnly = false, 
+            drawNoteNames = false, tappedList = [], focus = null, drawFormula = false, fntSize = 16
         } = data;
 
-        // 2. Determine flavor. If root is F, A#, D#, or G#, we use flats.
-        const prefersFlats = rootNote === "F" || ["A#", "D#", "G#"].includes(rootNote);
+        const prefersFlats = rootNote === "F" || ["A#", "D#", "G#", "C#"].includes(rootNote);
         const displayNames = prefersFlats ? FLAT_NAMES : SHARP_NAMES;
         
         const rootPitch = NOTES.indexOf(rootNote);
-        const size = 16;
+        const size = fntSize * this.uiprop.scale;
         
         this.ctx.font = `bold ${size}px sans-serif`;
         this.ctx.textAlign = "center";
@@ -1048,10 +1076,6 @@ class FretboardEngine {
         for (let s = 0; s < 6; s++) {
             for (let f = startFret; f <= endFret; f++) { 
                 const currentPitch = StringBasePitches[s] + f;
-                
-                // Note: use % 12 on the pitch to get the correct name index
-                const noteName = displayNames[currentPitch % 12];
-                
                 const relativeSemitone = (currentPitch - rootPitch + 120) % 12;
                 const rawDist = currentPitch - rootPitch;
                 
@@ -1063,23 +1087,29 @@ class FretboardEngine {
                     const noteKey = `${s}-${f}`;                   
                     const tapped = tappedList.includes(noteKey);
                     
-                    // Focus/Alpha Logic
+                    // Focus Alpha Calculation
                     let focusAlpha = 1.0;
                     if (focus) {
                         const fretDist = Math.abs(f - focus.fret);
-                        focusAlpha = Math.max(0.05, 1 - (fretDist / 4));
+                        focusAlpha = Math.max(0.05, 1 - (fretDist / 5));
                     }
 
                     if (tapped || !drawTappedOnly) {
                         const pos = this.getFretCenter(s, f);
                         const color = this.getIntervalColor(semitones[matchIdx]);
                         
-                        // Use the theoretically correct noteName derived above
-                        let label = drawNoteNames ? noteName : formula[matchIdx];
+                        // REUSE THE LOGIC HERE
+                        const theoreticName = this.getTheoreticName(
+                            rootNote, 
+                            semitones[matchIdx], 
+                            formula[matchIdx], 
+                            displayNames, 
+                            prefersFlats
+                        );
 
-                        const baseAlpha = tapped ? 0.8 : 0.4;
-                        this.ctx.globalAlpha = baseAlpha * focusAlpha;
-                        
+                        let label = drawNoteNames ? theoreticName : formula[matchIdx];
+
+                        this.ctx.globalAlpha = (tapped ? 0.8 : 0.4) * focusAlpha;
                         this.ctx.fillStyle = color;
                         this.ctx.beginPath(); 
                         this.ctx.arc(pos.x, pos.y, size / 2 + 4, 0, Math.PI * 2);
@@ -1087,13 +1117,18 @@ class FretboardEngine {
 
                         this.ctx.globalAlpha = focusAlpha;
                         this.ctx.fillStyle = "white";
-                        this.ctx.fillText(`${label}`, pos.x, pos.y + 4);
+                        this.ctx.fillText(label, pos.x, pos.y + 4);
+                        if (drawFormula && matchIdx!==0) {
+                            this.ctx.font = `bold ${size * 0.7}px sans-serif`;
+                            this.ctx.fillText(formula[matchIdx], pos.x+11, pos.y + 14);
+                        }
                     }
                 }
             }
         }
         this.ctx.globalAlpha = 1;
     }
+
     calculateAllShapePositions(rootNoteName) {
         const rootIdx = NOTES.indexOf(rootNoteName);
         const getFret = (stringIdx, targetNoteIdx) => (targetNoteIdx - StringBasePitches[stringIdx] + 120) % 12;
@@ -1288,24 +1323,25 @@ class FretboardEngine {
         return num ;
        }
 
+    // returns a set of noteIdx that have been tapped on a specific string (or all strings if sIdx is null)
     tappedNoteSet(sIdx = null) {
         return new Set(
             this.history
                 .filter(h => sIdx === null || h.sIdx === sIdx)
-                .map(h => h.name)
+                .map(h => h.noteIdx)
         );
     }
-                                               
-    removeHistoryItems( sIdx, noteName=null){
-        if (noteName===null){ // remove all items on string sIdx
+                                            
+    removeHistoryItems( sIdx, noteIdx=null){
+        if (noteIdx===null){ // remove all items on string sIdx
             this.history = this.history.filter(item => item.sIdx !== sIdx);
             return;
         }
-        this.history = this.history.filter(item => (item.name !== noteName && item.sIdx !== sIdx) );
+        this.history = this.history.filter(item => (item.noteIdx !== noteIdx && item.sIdx !== sIdx) );
     }
 
     processResult(isCorrect, data) {
-        const { visualX, visualY, noteName, sIdx, distance, stayOnChallenge, color , skipHistory} = data;
+        const { visualX, visualY, noteName, noteIdx, sIdx, fret, distance, stayOnChallenge, color , skipHistory, skipScore} = data;
         const now = Date.now();
         const delay = now - this.variant.startTime;
         const rspeed = (Math.random() - 0.5) * 30;
@@ -1327,10 +1363,11 @@ class FretboardEngine {
             // 2. Effects (Using the specific chord-slot color if provided)
             const feedbackColor = color || "#4CAF50"; 
             if (! skipHistory){
-                this.history.push({ x: visualX, y: visualY, name: noteName, color: feedbackColor, sIdx });
+                this.history.push({ x: visualX, y: visualY, sIdx: sIdx, fret: fret, name: noteName, noteIdx: noteIdx, color: feedbackColor, id: sIdx });
             }
             this.animate(visualX, visualY, noteName, feedbackColor);
-            this.addLabel(`${final}`, { duration: 2 , color:"green", x: visualX+20, y: visualY-10, 
+            if (!skipScore)
+                this.addLabel(`${final}`, { duration: 2 , color:"green", x: visualX+20, y: visualY-10, 
                                   rotationSpeed:rspeed, speed:tspeed, acceleration : taccel,
                                   direction: up, duration :1, size:30                               
                                   });
@@ -1340,10 +1377,11 @@ class FretboardEngine {
             this.score -= penalty ;
             this.mistakes++;
             if (! skipHistory){
-                this.history.push({ x: visualX, y: visualY, name: noteName, color: "#FF5252" , id:`${sIdx}-${noteName}` });
+                this.history.push({ x: visualX, y: visualY, sIdx: sIdx, name: noteName, noteIdx: noteIdx, color: "#FF5252" , id:`${sIdx}-${noteName}` });
             }
             this.animate(visualX, visualY, noteName, "#FF5252");
-            this.addLabel(`-${penalty}`, { duration: 2 , color:"red", x: visualX-20, y: visualY-10, 
+            if (!skipScore) 
+                this.addLabel(`-${penalty}`, { duration: 2 , color:"red", x: visualX-20, y: visualY-10, 
                                   rotationSpeed:rspeed, speed: tspeed, acceleration : taccel, 
                                   direction: down, duration:1, size:30
                                  });
@@ -1473,6 +1511,30 @@ class FretboardEngine {
                     ctx.fillText(`${obj.label}: ${obj.score}`, w - 10, y);y += lineHeight;
         });
     }
+
+    playChord(strumSpeed = 0.03) {
+        if (!this.history.length) return;
+
+        // 1. Group by string index and pick the highest fret/note per string 
+        // (Ensures one note per string if history has duplicates)
+        const activeNotes = Array.from(
+            this.history.reduce((map, entry) => {
+                map.set(entry.sIdx, entry);
+                return map;
+            }, new Map()).values()
+        );
+
+        // 2. Sort by string index (sIdx 0 is the low E string)
+        activeNotes.sort((a, b) => a.sIdx - b.sIdx);
+
+        // 3. Play each note with a staggered delay
+        activeNotes.forEach((note, index) => {
+            const pitch = StringBasePitches[note.sIdx] + note.fret;
+            const delay = index * strumSpeed;
+            this.audio.playNote(pitch, delay);
+        });
+    }
+
 }
     
 const game = new FretboardEngine(document.getElementById('fretboard'));
@@ -1533,12 +1595,12 @@ function switchGame(type) {
     else if (type === 'chords') {
         game.variant = ChordCompletionVariant;
         game.autoPauseDuration=3600000;
-        game.viewHeightFactor=0.90;
+        game.viewHeightFactor=0.84;
     }    
     else if (type === 'IntSearch') {
         game.variant = IntervalSearchVariant;
         game.autoPauseDuration=3600000;
-        game.viewHeightFactor=0.85;
+        game.viewHeightFactor=0.84;
     } 
     else if (type === 'show') {
         game.variant = SlideShowVariant;
@@ -1577,6 +1639,7 @@ function clearFretStats() {
         toggleMenu(false);
     }
 }
+
 
 switchGame('keyboard');
 game.draw();

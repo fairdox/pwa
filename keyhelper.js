@@ -234,8 +234,8 @@ const KeyboardHelper = {
     initChordSelectorPalette(engine, variant, id = 203) {
         if (!variant.buttons) variant.buttons = [];
         const uiprop = engine.uiprop;
-        const btnW = uiprop.btnW,
-            btnH = uiprop.btnH *.5,
+        const btnW = uiprop.btnW*1.15,
+            btnH = uiprop.btnH *.42,
             gap = uiprop.btnGap;
 
         const cols = 6;
@@ -245,7 +245,7 @@ const KeyboardHelper = {
         const totalH = (rows * btnH) + ((rows - 1) * gap);
         
         const startX = (engine.canvas.width - totalW) / 2;
-        const startY = (engine.canvas.height - totalH); 
+        const startY = (engine.canvas.height - totalH - 15*engine.uiprop.scale);
 
         CHORD_FORMULAS.forEach((chord, i) => {
             const col = i % cols;
@@ -262,8 +262,9 @@ const KeyboardHelper = {
                 formula: chord.formula,
                 semitones: chord.semitones,
                 fullLabel: chord.label,
+                chordIdx: i,
                 hidden: false,
-                fntSize: engine.uiprop.keybfntsize,
+                fntSize: engine.uiprop.keybfntsize*.9,
                 id: id
             });
         });

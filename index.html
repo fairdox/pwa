@@ -160,8 +160,7 @@
 <script src="keyhelper.js?v=1.12"></script>
 
 <script>
-const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const SHARP_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTES =       ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLAT_NAMES  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];    
 
 const StringBasePitches = [40, 45, 50, 55, 59, 64]; 
@@ -514,7 +513,8 @@ class FretboardEngine {
             const key = `${sIdx}-${fIdx}`;
             if (this.tappedKeys.has(key)) return;            
             
-            const noteName = NOTES[(STRINGS[sIdx] + fIdx) % 12];
+            const noteIdx = (STRINGS[sIdx] + fIdx) % 12;
+            const noteName = NOTES[noteIdx];
 
             //alert (` ${sIdx} ${sIdx} notename=${noteName}`);
 
@@ -523,7 +523,7 @@ class FretboardEngine {
                     (this.fretPositions[fIdx] + this.fretPositions[fIdx-1]) / 2;
 
             //this.variant.label=`> ${x} ${y} `;
-            const skipSaveTap = this.variant.onTap(this, sIdx, fIdx, noteName, x, y);
+            const skipSaveTap = this.variant.onTap(this, sIdx, fIdx, noteName, x, y, noteIdx);
             if (!this.variant.skipSavingTaps) this.tappedKeys.add(key);
                 
                         
@@ -533,7 +533,7 @@ class FretboardEngine {
 
             //this.variant.label=`>> ${tx} ${ty} `;
             if (this.variant && this.variant.onTap) {
-                this.variant.onTap(this, null, null, null, tx, ty);
+                this.variant.onTap(this, null, null, null, tx, ty, null);
             }
         }
     }
@@ -1041,8 +1041,8 @@ class FretboardEngine {
 
     getChordSpelling(rootNote, semitones, formula) {
         const prefersFlats = rootNote === "F" || ["A#", "D#", "G#", "C#"].includes(rootNote);
-        const displayNames = prefersFlats ? FLAT_NAMES : SHARP_NAMES;
-        const rootIdx = SHARP_NAMES.indexOf(rootNote);
+        const displayNames = prefersFlats ? FLAT_NAMES : NOTES;
+        const rootIdx = NOTES.indexOf(rootNote);
         
         return semitones.map((st, i) => {
             const noteIdx = (rootIdx + st + 120) % 12;
@@ -1065,7 +1065,7 @@ class FretboardEngine {
         } = data;
 
         const prefersFlats = rootNote === "F" || ["A#", "D#", "G#", "C#"].includes(rootNote);
-        const displayNames = prefersFlats ? FLAT_NAMES : SHARP_NAMES;
+        const displayNames = prefersFlats ? FLAT_NAMES : NOTES;
         
         const rootPitch = NOTES.indexOf(rootNote);
         const size = fntSize * this.uiprop.scale;
@@ -1403,43 +1403,42 @@ class FretboardEngine {
             this.variant.startTime = Date.now(); 
         }
     }
-    getWorstCombos(limit, exclude = null, snum = null) {
+    
+    getWorstCombos(limit, exclude = null, snum = null, alternate = false) {
         let unplayed = [], played = [];
         
-        // Helper to check if this specific note should be skipped
+        const sourceNotes = alternate ? FLAT_NAMES : NOTES;
         const isExcluded = (n) => exclude !== null && n === exclude;
-    
+
         if (this.variant?.noStringStat) {
-            NOTES.forEach(n => {
-                if (isExcluded(n)) return; // Skip the excluded note   
+            sourceNotes.forEach((n, i) => {
+                if (isExcluded(n)) return; 
                 const score = this.stats[`${this.statKey}-${n}`] ?? -1;
-                const item = { note: n, score: score };                
+                const item = { note: n, noteIdx: i, score: score };                
                 if (score === -1) unplayed.push(item);
                 else played.push(item);
             });
         } else {
             const sStart = snum ? snum : 0;
-            const sEnd = snum ? snum+1 : 6;
+            const sEnd = snum ? snum + 1 : 6;
             for (let s = sStart; s < sEnd; s++) {
-                NOTES.forEach(n => {
-                    if (isExcluded(n)) return; // Skip the excluded note
+                sourceNotes.forEach((n, i) => {
+                    if (isExcluded(n)) return;
                     const score = this.stats[`${this.statKey}${s}-${n}`] ?? -1;
-                    const item = { sIdx: s, note: n, score: score };
+                    const item = { sIdx: s, note: n, noteIdx: i, score: score };
                     if (score === -1) unplayed.push(item);
                     else played.push(item);
                 });
             }
         }
-    
-        // 1. If we have notes never played before, prioritize them (randomized)
+
         if (unplayed.length > 0) {
             return unplayed.sort(() => Math.random() - 0.5).slice(0, limit);
         }
-    
-        // 2. Otherwise, return the notes with the lowest scores (worst performance)
+
         return played.sort((a, b) => a.score - b.score).slice(0, limit);
     }
-    
+
     renderStats(full) {
         let all = [];
         let sum = 0, count = 0;

@@ -481,9 +481,10 @@ const SectionVariant = {
             this.sectionSeq = Math.floor(Math.random() * this.sections.length);
         }
         this.range = this.sections[this.sectionSeq];
-        const candidates = engine.getWorstCombos(5, this.targetNote, this.sectionSeq);
+        const candidates = engine.getWorstCombos(5, this.targetNote, this.sectionSeq, true);
         const selection = candidates[Math.floor(Math.random() * candidates.length)];
         this.targetNote = selection.note;
+        this.targetIdx = selection.noteIdx;
 
         this.foundCount = 0;
         this.needed = this.calculateNeeded();
@@ -497,18 +498,18 @@ const SectionVariant = {
         this.label = `FIND ALL ${this.needed} \"${this.targetNote}\" IN FRET ${this.range[0]} TO ${this.range[1]} `;
         engine.gameActive = true;  
     },
-    onTap(engine, s, f, name, x, y) {
+    onTap(engine, s, f, name, x, y, noteIdx) {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);  
         if (f < this.range[0] || f > this.range[1]) return;
         const coords = engine.getFretCoordinates(s, f);
 
-        const isCorrect = (name === this.targetNote);
+        const isCorrect = (noteIdx === this.targetIdx);
 
         engine.processResult(isCorrect, {
             visualX: coords.x, 
             visualY: coords.y, 
             sIdx: this.sectionSeq, // Section Id used instead of string number in this game stats 
-            noteName: name,
+            noteName: isCorrect? this.targetNote : name, // if correct, use the target note for stats tracking instead of the tapped note which can be a flat or sharp version of the same note
             stayOnChallenge: true
         });
 
@@ -549,10 +550,10 @@ const SectionVariant = {
         let count = 0;
         for (let s = 0; s < 6; s++) {
             for (let f = this.range[0]; f <= this.range[1]; f++) {
-                if (NOTES[(STRINGS[s] + f) % 12] === this.targetNote) count++;
+                if ((STRINGS[s] + f) % 12 === this.targetIdx) count++;
             }
         }
-        return count || 1;
+        return count;
     }
 
 };
@@ -562,11 +563,13 @@ const SingleStringVariant = {
     label: "SINGLE STRING",
     statKey: "St",
     init(engine) {
-        const candidates = engine.getWorstCombos(10);
+        const candidates = engine.getWorstCombos(10, null, null, true);
         const selection = candidates[Math.floor(Math.random() * candidates.length)]; 
 
         this.targetString = selection.sIdx;
         this.targetNote = selection.note;
+        this.targetIdx = selection.noteIdx;
+
         engine.mistakes = 0;
         this.foundCount = 0;
         this.needed = 1; 
@@ -574,7 +577,7 @@ const SingleStringVariant = {
         // Find the correct fret index for distance calculation
         this.targetFret = -1;
         for (let f = 0; f <= 12; f++) {
-            if (NOTES[(STRINGS[this.targetString] + f) % 12] === this.targetNote) {
+            if ((STRINGS[this.targetString] + f) % 12 === this.targetIdx) {
                 this.targetFret = f;
                 break;
             }
@@ -586,18 +589,19 @@ const SingleStringVariant = {
         this.label = `STRING ${this.targetString + 1}: FIND ${this.targetNote}`;
     },
 
-    onTap(engine, s, f, name, x, y) {
+    onTap(engine, s, f, name, x, y, noteIdx) {
         if (s !== this.targetString) return;
     
         // Snap to the center of the touched fret
         const coords = engine.getFretCoordinates(s, f);
-    
-        engine.processResult(name === this.targetNote, {
+        const isCorrect = (noteIdx === this.targetIdx);
+        engine.processResult(isCorrect, {
             visualX: coords.x, 
             visualY: coords.y, 
             sIdx: s, 
-            noteName: name,
-            distance: Math.abs(f - this.targetFret)
+            noteName: isCorrect ? this.targetNote : name,
+            distance: Math.abs(f - this.targetFret),
+            stayOnChallenge: !isCorrect
         });
     },
 
@@ -761,8 +765,9 @@ const ChordCompletionVariant = {
                         // If this root is lower than our previous root, update the floor
                         this.rootPitch = currentPitch;
                         engine.addLabel("New lower root set!", {color: "cyan", size: 12});
-                    }
-                } 
+                    }              
+                }
+                name=this.chordSpelling[slotIdx]; // to display the normalized note name
                 engine.processResult(true, {
                     visualX: x, visualY: y, noteName: name, noteIdx: tappedIdx, sIdx: sIdx, fret: f,
                     color: engine.getIntervalColor(this.semitones[slotIdx]),
@@ -818,13 +823,18 @@ const ChordCompletionVariant = {
                 x = pos.x + (i * 30);
                 ctx.fillStyle = engine.getIntervalColor(this.semitones[i]);
                 ctx.font = "bold 20px sans-serif";
-                const noteName = i===0 ? this.rootNote : NOTES[foundNoteIdx];
+                const noteName = this.chordSpelling[i];
                 if (noteName.length>1) x=x+10; 
                 ctx.fillText(noteName, x , pos.y+35*engine.uiprop.scale);
             }
         });
         if (this.showHints && this.rootNote){
-            engine.drawChordMap(this.rootNote, this.semitones, this.formula, {})
+            const {sIdx,f} = this.firstNotedata;
+            let focus = null;
+            if (sIdx && f){
+                focus= {string: sIdx, fret: f};
+            }
+            engine.drawChordMap(this.rootNote, this.semitones, this.formula, {focus: focus})
         }
     }
 };

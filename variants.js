@@ -277,6 +277,8 @@ const CHORD_FORMULAS = [
     { label: "m(maj9) (Minor-Major 9th)", short: "m7+(9)",  formula: ["1", "b3", "5", "7", "9"],  semitones: [0, 3, 7, 11, 14] },
     { label: "+9 (aug 9th) 7 sharp 9", short: "7+(9)", formula: ["1", "3", "5", "b7", "#9"], semitones: [0, 4, 7, 10, 15] }, 
     { label: "7+ (aug 7th)", short: "7+", formula: ["1", "3", "#5", "b7"], semitones: [0, 4, 8, 10] }, 
+    { label: "Chromatic Union", short: "Union",  formula: ["1", "2", "b3", "3", "4", "b5", "5", "#5", "6", "bb7", "b7", "7", "b9", "9", "#9", "#11", "11", "13"], 
+    semitones: [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 17, 18, 21] },
 ];
 
 function getUniqueIntervals(formulas) {
@@ -629,16 +631,14 @@ const ChordCompletionVariant = {
         this.showHints = false;
         this.buttons=[];
         const objects = KeyboardHelper.addFunctionKeys(engine,this, arrows=false);
-        KeyboardHelper.initChordSelectorPalette(engine, this);
+        this.lastBtn=KeyboardHelper.initChordSelectorPalette(engine, this);
+        this.lastBtn.isSelected=true;
+        this.labeltext=CHORD_FORMULAS[this.lastBtn.chordIdx].short;
         let pos = engine.getFretCoordinates(0,3);
         this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "🔊", pad, pos.y,
                                                              "#484",
                                                               () => this.playChord(engine)
                                                               , null,scale*30,scale*25,18);
-
-        this.lastBtn=null
-        this.engLabel = engine.addLabel("", {color:"#666", duration: -1, size:25*scale,
-             x:w/2, y:25*scale});
 
         this.setChord(engine,this.chordIdx);
         this.initGame(engine);
@@ -670,7 +670,6 @@ const ChordCompletionVariant = {
         engine.tappedKeys.clear();
         this.startTime = Date.now();
         engine.score = 0;
-        this.engLabel.text = "";
 
     },
 
@@ -711,7 +710,7 @@ const ChordCompletionVariant = {
     setRoot(engine, name, tappedIdx) {
         this.chordSpelling = engine.getChordSpelling(name, this.semitones, this.formula);
         const normName= this.chordSpelling[0];
-        this.engLabel.text = `${normName || "?"}${this.chordLabel || "?"}`;
+        this.labeltext = `${normName || "?"}${this.chordLabel || "?"}`;
         this.rootNote = name;
         this.rootIdx = tappedIdx;        
         return normName;
@@ -729,7 +728,7 @@ const ChordCompletionVariant = {
             }
             if (this.rootNote){
                 this.chordSpelling = engine.getChordSpelling(this.rootNote, this.semitones, this.formula);
-                this.engLabel.text = `${this.chordSpelling[0] || "?"}${this.chordLabel || "?"}`;
+                this.labeltext = `${this.chordSpelling[0] || "?"}${this.chordLabel || "?"}`;
             }
             return;
         }
@@ -794,10 +793,16 @@ const ChordCompletionVariant = {
         const ctx = engine.ctx;
         const w = engine.canvas.width;
         const h = engine.canvas.height;
-        const pos =engine.getFretCoordinates(1,12);
-
         KeyboardHelper.draw(engine, this.buttons);
+
+        let pos =engine.getFretCoordinates(0,12);
+        ctx.fillStyle = "#ddd";
+        ctx.font = "bold 20px sans-serif";
+        ctx.fillText(this.labeltext, pos.x , pos.y + 35*engine.uiprop.scale);
+
         if (!this.formula) return; // Wait until formula is set
+        pos =engine.getFretCoordinates(1,12);
+
         this.formula.forEach((interval, i) => {
             let x = pos.x + (i * 30);
             const foundNoteIdx = this.foundNotes[i];

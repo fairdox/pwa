@@ -246,11 +246,10 @@ const KeyboardHelper = {
         
         const startX = (engine.canvas.width - totalW) / 2;
         const startY = (engine.canvas.height - totalH - 15*engine.uiprop.scale);
-
+        let firstBtn = null;
         CHORD_FORMULAS.forEach((chord, i) => {
             const col = i % cols;
             const row = Math.floor(i / cols);
-            
             variant.buttons.push({
                 x: startX + col * (btnW + gap),
                 y: startY + row * (btnH + gap),
@@ -265,9 +264,12 @@ const KeyboardHelper = {
                 chordIdx: i,
                 hidden: false,
                 fntSize: engine.uiprop.keybfntsize*.9,
+                isSelected: false,
                 id: id
             });
+            if (i===0) firstBtn=variant.buttons[variant.buttons.length-1];
         });
+        return firstBtn;
     },
     
     hideButtons(variant, id) {

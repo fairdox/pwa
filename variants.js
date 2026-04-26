@@ -244,43 +244,6 @@ const KeyboardVariant = {
     }
 };
 
-const CHORD_FORMULAS = [
-    { label: "Major Chord", short: "Maj", formula: ["1", "3", "5"], semitones: [0, 4, 7] },
-    { label: "Minor Chord", short: "m", formula: ["1", "b3", "5"], semitones: [0, 3, 7] },
-    { label: "Dominant 7th", short: "7", formula: ["1", "3", "5", "b7"], semitones: [0, 4, 7, 10] },
-    { label: "Major 7th", short: "Maj7", formula: ["1", "3", "5", "7"], semitones: [0, 4, 7, 11] },
-    { label: "Minor 7th", short: "m7", formula: ["1", "b3", "5", "b7"], semitones: [0, 3, 7, 10] },
-    { label: "Sus4 Chord", short: "sus4", formula: ["1", "4", "5"], semitones: [0, 5, 7] },
-    { label: "Sus2 Chord", short: "sus2", formula: ["1", "2", "5"], semitones: [0, 2, 7] },
-    { label: "Major 6th", short: "6", formula: ["1", "3", "5", "6"], semitones: [0, 4, 7, 9] },
-    { label: "Minor 6th", short: "m6", formula: ["1", "b3", "5", "6"], semitones: [0, 3, 7, 9] },
-    { label: "9th ", short: "9", formula: ["1", "3", "5", "b7", "9"], semitones: [0, 4, 7, 10, 14] }, 
-    { label: "11th ", short: "11", formula: ["1", "3", "5", "b7", "9", "11"], semitones: [0, 4, 7, 10, 14, 17] }, 
-    { label: "Add9 (Maj 9th)", short: "add9", formula: ["1", "3", "5", "9"], semitones: [0, 4, 7, 14] }, 
-    { label: "Diminished", short: "dim", formula: ["1", "b3", "b5"], semitones: [0, 3, 6] },
-    { label: "Augmented", short: "aug", formula: ["1", "3", "#5"], semitones: [0, 4, 8] },
-    
-    // EXTENSIONS (DOMINANT)
-    { label: "13th (Dom 13)", short: "13", formula: ["1", "3", "5", "b7", "9", "13"], semitones: [0, 4, 7, 10, 14, 21] },
-    { label: "7b9 (Dom 7 Flat 9)", short: "7b9", formula: ["1", "3", "5", "b7", "b9"], semitones: [0, 4, 7, 10, 13] },
-    { label: "7#11 (Lydian Dominant)", short: "7#11", formula: ["1", "3", "5", "b7", "#11"], semitones: [0, 4, 7, 10, 18] },
-
-    // ROCK & POP FAVORITES
-    { label: "5 (Power Chord)", short: "5", formula: ["1", "5"], semitones: [0, 7] },
-    { label: "6/9 (Major 6/9)", short: "6/9", formula: ["1", "3", "5", "6", "9"], semitones: [0, 4, 7, 9, 14] },
-    { label: "7sus4 (Dominant 7th Sus 4)", short: "7sus4", formula: ["1", "4", "5", "b7"], semitones: [0, 5, 7, 10] },
-    // JAZZ ESSENTIALS
-    { label: "m7b5 (Half-Diminished, o7)", short: "m7b5", formula: ["1", "b3", "b5", "b7"], semitones: [0, 3, 6, 10] },
-    { label: "dim7 (Fully Diminished, o7)", short: "dim7", formula: ["1", "b3", "b5", "bb7"], semitones: [0, 3, 6, 9] },
-    { label: "m(maj7) (Minor-Major 7th)", short: "mMaj7", formula: ["1", "b3", "5", "7"], semitones: [0, 3, 7, 11] },
-    { label: "m9 (Minor 9th)",  short: "m7(9)",   formula: ["1", "b3", "5", "b7", "9"],   semitones: [0, 3, 7, 10, 14] },
-    { label: "m(maj9) (Minor-Major 9th)", short: "m7+(9)",  formula: ["1", "b3", "5", "7", "9"],  semitones: [0, 3, 7, 11, 14] },
-    { label: "+9 (aug 9th) 7 sharp 9", short: "7+(9)", formula: ["1", "3", "5", "b7", "#9"], semitones: [0, 4, 7, 10, 15] }, 
-    { label: "7+ (aug 7th)", short: "7+", formula: ["1", "3", "#5", "b7"], semitones: [0, 4, 8, 10] }, 
-    { label: "Chromatic Union", short: "Union",  formula: ["1", "2", "b3", "3", "4", "b5", "5", "#5", "6", "bb7", "b7", "7", "b9", "9", "#9", "#11", "11", "13"], 
-    semitones: [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 17, 18, 21] },
-];
-
 function getUniqueIntervals(formulas) {
     const allIntervals = [];
     formulas.forEach(chord => {
@@ -637,7 +600,7 @@ const ChordCompletionVariant = {
         const objects = KeyboardHelper.addFunctionKeys(engine,this, arrows=false);
         this.lastBtn=KeyboardHelper.initChordSelectorPalette(engine, this);
         this.lastBtn.isSelected=true;
-        this.labeltext=CHORD_FORMULAS[this.lastBtn.chordIdx].short;
+        this.labeltext=CHORD_FORMULAS[this.lastBtn.chordIdx].suffix;
         let pos = engine.getFretCoordinates(0,3);
         this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "🔊", pad, pos.y,
                                                              "#484",
@@ -688,7 +651,7 @@ const ChordCompletionVariant = {
     setChord(engine,chordIdx){
         this.chordIdx = chordIdx;
         const type = CHORD_FORMULAS[this.chordIdx];
-        this.chordLabel = type.short;
+        this.chordLabel = type.suffix;
         this.formula = type.formula;
         this.semitones = type.semitones;
         this.semitones=this.semitones.map(s => s % 12); // to normalize somitones that are > 12 
@@ -732,6 +695,7 @@ const ChordCompletionVariant = {
             }
             if (this.rootNote){
                 this.chordSpelling = engine.getChordSpelling(this.rootNote, this.semitones, this.formula);
+                engine.addVoicingToHistory(this.rootNote, this.lastBtn.suffix, 0);
                 this.labeltext = `${this.chordSpelling[0] || "?"}${this.chordLabel || "?"}`;
             }
             return;
@@ -742,6 +706,9 @@ const ChordCompletionVariant = {
         if (this.rootNote==null) {
             this.firstNotedata={sIdx,f,name,x,y, tappedIdx};
             name=this.setRoot(engine, name, tappedIdx);
+            if (this.lastBtn) {
+                engine.addVoicingToHistory(this.rootNote, this.lastBtn.suffix, 0);
+            }
         }
 
         const currentPitch = StringBasePitches[sIdx] + f;

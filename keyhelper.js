@@ -231,6 +231,18 @@ const KeyboardHelper = {
         });
     },
 
+    showGroupedChordSelector(variant, grpid){
+        variant.buttons.forEach(btn => {
+            if (btn.group ){
+                if (btn.group.startsWith(grpid)){
+                    btn.hidden=false;
+                } else {
+                    if (!btn.callback) btn.hidden=true;
+                }
+            } 
+        });
+    },
+
     initChordSelectorPalette(engine, variant, id = 203) {
         if (!variant.buttons) variant.buttons = [];
         const uiprop = engine.uiprop;
@@ -238,24 +250,45 @@ const KeyboardHelper = {
             btnH = uiprop.btnH *.42,
             gap = uiprop.btnGap;
 
-        const cols = 6;
-        const rows = Math.ceil(CHORD_FORMULAS.length / cols);
+        const maxcols = 5;
+        const maxrows = 5;
         
-        const totalW = (cols * btnW) + ((cols - 1) * gap);
-        const totalH = (rows * btnH) + ((rows - 1) * gap);
+        const totalW = ((maxcols+1) * btnW) + (maxcols * gap);
+        const totalH = (maxrows * btnH) + ((maxrows - 1) * gap);
         
         const startX = (engine.canvas.width - totalW) / 2;
         const startY = (engine.canvas.height - totalH - 15*engine.uiprop.scale);
         let firstBtn = null;
-        CHORD_FORMULAS.forEach((chord, i) => {
-            const col = i % cols;
-            const row = Math.floor(i / cols);
+        let ci = 0;
+        const chordGroups = ["Min", "Maj", "Dom", "Other", "Recent"]; 
+        chordGroups.forEach((group,i)    => {
             variant.buttons.push({
-                x: startX + col * (btnW + gap),
+                x: startX ,
+                y: startY + i * (btnH + gap),
+                w: btnW,
+                h: btnH,
+                toggleState: null,
+                note: group,
+                group: `${i}`,
+                color: "#380",
+                hidden: false,
+                callback: () => this.showGroupedChordSelector(variant, `${i+1}`),
+                id: id
+            });
+        });
+
+        CHORD_FORMULAS.forEach((chord, i) => {
+            const col = ci % maxcols;
+            const row = Math.floor(ci / maxcols);
+            ci++;
+            variant.buttons.push({
+                x: startX + (col+1) * (btnW + gap),
                 y: startY + row * (btnH + gap),
                 w: btnW,
                 h: btnH,
-                note: chord.short, // Using the new short name field
+                note: chord.suffix,
+                group: chord.group,
+                suffix: chord.suffix,
                 toggleState: null,
                 color: "#888",
                 formula: chord.formula,
@@ -267,7 +300,15 @@ const KeyboardHelper = {
                 isSelected: false,
                 id: id
             });
-            if (i===0) firstBtn=variant.buttons[variant.buttons.length-1];
+            if (i===0) {
+                firstBtn=variant.buttons[variant.buttons.length-1];
+                lastGroupe=chord.group.charAt(0);
+            }
+            if (chord.group.charAt(0) !== lastGroupe){
+                ci=0;
+                lastGroupe=chord.group.charAt(0);
+            }
+            
         });
         return firstBtn;
     },

@@ -104,6 +104,7 @@ class FretboardEngine {
         this.audioUnlocked=false;
         this.audio = new AudioController();
         this.HighlightFrets=null;
+        this._currentChordVariant=null; // null: none, 0: v1, 1: v2, etc
 
         // Map of intervals to semitones for runtime calculation
         this.intervalMap = {
@@ -410,37 +411,50 @@ class FretboardEngine {
         }
     }
 
+    async setVoicingVariant(variantIdx){
+        if (this.currentVoicing) {
+            this._currentChordVariant = variantIdx;
+            this.addVoicingToHistory(this.currentVoicing.key, this.currentVoicing.suffix, variantIdx);
+        }
+    }
     /**
      * Fetches a specific voicing and populates the engine history
      * @param {string} key - e.g., 'C'
      * @param {string} suffix - e.g., 'maj7'
      * @param {number} variantIdx - Index in the positions array
      */
-    async addVoicingToHistory(key, suffix, variantIdx = 0) {
+    async addVoicingToHistory(key, suffix, variantIdx = null) {
         try {
             const keyMap = { "Db": "Csharp",  "Gb": "Fsharp", 
                              "A#": "Bb", "C#": "Csharp", "D#": "Eb", "F#": "Fsharp", "G#": "Ab", 
              };
             const normalizedKey = keyMap[key] || key;
 
-            const positions = await dbService.getChordVoicings(normalizedKey, suffix);
-            
-            if (!positions || !positions[variantIdx]) {
-                console.warn(`Voicing ${variantIdx} not found for ${key} (${normalizedKey}) ${suffix}`);
-                return;
+            let positions = [];
+            if (variantIdx === null) 
+                variantIdx = this._currentChordVariant; // If no specific variant is requested, use the last one set by the buttons
+            if (variantIdx !== null) {
+                positions = await dbService.getChordVoicings(normalizedKey, suffix);
+                if (!positions || !positions[variantIdx]) {
+                    console.warn(`Voicing ${variantIdx} not found for ${key} (${normalizedKey}) ${suffix}`);
+                    return;
+                }
             }
 
+            const cvId = "chordVoicing"; // Unique ID for this type of history item
+            this.removeHistoryItems(null,null,cvId); // Clear previous chord voicing from history
+            this.currentVoicing = { key, suffix, variantIdx }; // Store current voicing for reference
+            if (variantIdx === null || variantIdx >= positions.length) return; // If no specific variant is requested, we just update the buttons without adding to history
+            KeyboardHelper.updateChordVariantButtons(this.variant, variantIdx, positions.length); // Update UI buttons based on available variants
             const voicing = positions[variantIdx];
             const frets = voicing.frets;     
             const fingers = voicing.fingers; 
             const baseFret = voicing.baseFret || 1; // Critical: use baseFret or default to 1
-            const cvId = "chordVoicing"; // Unique ID for this type of history item
 
             const { firstStringX, spacingX } = this.getFretboardLayout();
             const semitones = CHORD_FORMULAS.find(c => c.suffix === suffix)?.semitones || [];
             const currentChordRootIdx = NOTES.indexOf(key) || FLAT_NAMES.indexOf(key) || 0; // Fallback to 0 if not found, but ideally should be found
 
-            this.removeHistoryItems(null,null,cvId); // Clear previous chord voicing from history
             for (let sIdx = 0; sIdx < frets.length; sIdx++) {
                 const char = frets[sIdx];
                 
@@ -491,9 +505,6 @@ class FretboardEngine {
                     size: this.uiprop.drawNodeChordSize,
                 });
             }
-
-            // Trigger redraw after populating history
-            this.draw();
 
         } catch (err) {
             console.error("Engine failed to load voicing:", err);
@@ -1371,9 +1382,11 @@ class FretboardEngine {
         }
     }
     
-    getWorstCombos(limit, exclude = null, snum = null, alternate = false) {
+    getWorstCombos(limit, exclude = null, snum = null, alternate = null) {
         let unplayed = [], played = [];
         
+        // if alternate is null, shoose randomly between NOTES and FLAT_NAMES for the sourceNotes. If it's true, use FLAT_NAMES, if false use NOTES.
+        if (alternate===null) alternate = Math.random() < 0.5;
         const sourceNotes = alternate ? FLAT_NAMES : NOTES;
         const isExcluded = (n) => exclude !== null && n === exclude;
 

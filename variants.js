@@ -444,7 +444,7 @@ const SectionVariant = {
             this.sectionSeq = Math.floor(Math.random() * this.sections.length);
         }
         this.range = this.sections[this.sectionSeq];
-        const candidates = engine.getWorstCombos(5, this.targetNote, this.sectionSeq, true);
+        const candidates = engine.getWorstCombos(5, this.targetNote, this.sectionSeq);
         const selection = candidates[Math.floor(Math.random() * candidates.length)];
         this.targetNote = selection.note;
         this.targetIdx = selection.noteIdx;
@@ -695,7 +695,7 @@ const ChordCompletionVariant = {
             }
             if (this.rootNote){
                 this.chordSpelling = engine.getChordSpelling(this.rootNote, this.semitones, this.formula);
-                engine.addVoicingToHistory(this.rootNote, this.lastBtn.suffix, 0);
+                engine.addVoicingToHistory(this.rootNote, this.lastBtn.suffix);
                 this.labeltext = `${this.chordSpelling[0] || "?"}${this.chordLabel || "?"}`;
             }
             return;
@@ -707,7 +707,7 @@ const ChordCompletionVariant = {
             this.firstNotedata={sIdx,f,name,x,y, tappedIdx};
             name=this.setRoot(engine, name, tappedIdx);
             if (this.lastBtn) {
-                engine.addVoicingToHistory(this.rootNote, this.lastBtn.suffix, 0);
+                engine.addVoicingToHistory(this.rootNote, this.lastBtn.suffix);
             }
         }
 

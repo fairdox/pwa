@@ -243,31 +243,80 @@ const KeyboardHelper = {
         });
     },
 
+    updateChordVariantButtons(variant, curChordVariant, maxChordVariants=5){
+        variant.buttons.forEach(btn => {
+            if (btn.chordVariant !== undefined){
+                if (btn.chordVariant>maxChordVariants-1){
+                    btn.hidden=true;
+                } else {
+                    btn.hidden=false;
+                }
+                if (btn.chordVariant===curChordVariant){
+                    btn.toggleState=true;
+                } else {
+                    btn.toggleState=false;
+                }
+            }
+        });
+    },
+
     initChordSelectorPalette(engine, variant, id = 203) {
         if (!variant.buttons) variant.buttons = [];
+        const h = engine.canvas.height;
+        const w = engine.canvas.width;
+        const pad = engine.uiprop.sidePadding;
+        const scale = engine.uiprop.scale;
+        const optbtnw = engine.uiprop.optbtnW;
+        const optbtnh = engine.uiprop.optbtnH;
+        const lpad = pad ;
+        const rpad = pad ;
         const uiprop = engine.uiprop;
-        const btnW = uiprop.btnW*1.15,
-            btnH = uiprop.btnH *.42,
-            gap = uiprop.btnGap;
+        const btnW = 40*scale,
+              btnH = 20*scale,
+              chordBtnW = 50*scale,
+              chordBtnH = 20*scale,
+              gap = uiprop.btnGap;
 
-        const maxcols = 5;
-        const maxrows = 5;
+        const maxcols = 6;
+        const maxrows = 3;
         
-        const totalW = ((maxcols+1) * btnW) + (maxcols * gap);
-        const totalH = (maxrows * btnH) + ((maxrows - 1) * gap);
-        
-        const startX = (engine.canvas.width - totalW) / 2;
-        const startY = (engine.canvas.height - totalH - 15*engine.uiprop.scale);
-        let firstBtn = null;
-        let ci = 0;
+        const totalW = (maxcols * chordBtnW) + ((maxcols-1) * gap);
+        const totalH = (maxrows * chordBtnH) + ((maxrows - 1) * gap);
+                
+        const startX = (w - totalW) / 2;
+        const startY = (h - totalH - 15*scale);
+        const pos = engine.getFretCoordinates(0,5);
+
+
+        // Right column: Voicing Variants buttons (v0, v1, v2...)
+        for ( let i=0; i<=4; i++){
+            variant.buttons.push({
+                x: w-optbtnw-rpad,
+                y: pos.y + i * (optbtnh + gap),
+                w: optbtnw,
+                h: optbtnh,
+                toggleState: false,
+                toggleGroup: "chordVariant", // identify this toggle group, only one can be active at a time
+                note: `v${i+1}`,
+                chordVariant: i,
+                color: "#380",
+                hidden: false,
+                selected: false,
+                toggleTrueCallback: () => engine.setVoicingVariant(i),
+                toggleFalseCallback: () => engine.setVoicingVariant(null), 
+                id: id
+            });
+        };
+
         const chordGroups = ["Min", "Maj", "Dom", "Other", "Recent"]; 
         chordGroups.forEach((group,i)    => {
             variant.buttons.push({
-                x: startX ,
-                y: startY + i * (btnH + gap),
+                x: lpad ,
+                y: pos.y + i * (btnH + gap),
                 w: btnW,
                 h: btnH,
-                toggleState: null,
+                toggleState: false,
+                toggleGroup: "chordGroup",
                 note: group,
                 group: `${i}`,
                 color: "#380",
@@ -277,15 +326,17 @@ const KeyboardHelper = {
             });
         });
 
+        let firstBtn = null;
+        let ci = 0;
         CHORD_FORMULAS.forEach((chord, i) => {
             const col = ci % maxcols;
             const row = Math.floor(ci / maxcols);
             ci++;
             variant.buttons.push({
-                x: startX + (col+1) * (btnW + gap),
-                y: startY + row * (btnH + gap),
-                w: btnW,
-                h: btnH,
+                x: startX + col * (chordBtnW + gap),
+                y: startY + row * (chordBtnH + gap),
+                w: chordBtnW,
+                h: chordBtnH,
                 note: chord.suffix,
                 group: chord.group,
                 suffix: chord.suffix,
@@ -334,6 +385,22 @@ const KeyboardHelper = {
             btn.clickTime=Date.now();
             if (btn.toggleState!==null){
                 btn.toggleState = !btn.toggleState;
+                if (btn.toggleGroup!==undefined && btn.toggleState===true){
+                    // If this button is part of a toggle group, we need to turn off all other buttons in the same group
+                    buttons.forEach(b => {
+                        if (b.toggleGroup === btn.toggleGroup && b !== btn) {
+                            b.toggleState = false;
+                        }
+                    });
+                }
+                if (btn.toggleState && btn.toggleTrueCallback && typeof btn.toggleTrueCallback === 'function') {
+                    btn.toggleTrueCallback();
+                    return null;
+                }
+                if (!btn.toggleState && btn.toggleFalseCallback && typeof btn.toggleFalseCallback === 'function') {
+                    btn.toggleFalseCallback();
+                    return null;
+                }
             }
             if (btn.callback && typeof btn.callback === 'function') {
                 btn.callback();

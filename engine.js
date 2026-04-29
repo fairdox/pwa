@@ -214,10 +214,10 @@ class FretboardEngine {
         return { x, y };
     }
 
-    getNoteCoordinates(noteName, sIdx) {
+    getNoteCoordinates(noteIdx, sIdx) {
         // Running backwards (12 down to 0) favors the higher fret over the open string
         for (let f = 12; f >= 0; f--) {
-            if (NOTES[(STRINGS[sIdx] + f) % 12] === noteName) {
+            if ((STRINGS[sIdx] + f) % 12 === noteIdx) {
                 return this.getFretCoordinates(sIdx, f);
             }
         }

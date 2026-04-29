@@ -173,18 +173,18 @@ const KeyboardVariant = {
     },
 
     newChallenge(engine){
+        KeyboardHelper.updateButtonLabels(this, Math.random() < 0.5 ? "FLAT" : "SHARP");
         // Pick a target location (using your existing worst-score logic)
         const candidates = engine.getWorstCombos(10);
         const selection = candidates.length > 0 ? 
             candidates[Math.floor(Math.random() * candidates.length)] : 
-            { sIdx: Math.floor(Math.random() * 6), note: NOTES[Math.floor(Math.random() * 12)] };
+            { sIdx: Math.floor(Math.random() * 6), noteIdx: Math.floor(Math.random() * 12) };
 
         this.targetString = selection.sIdx;
-        this.targetNote = selection.note;
-        
+        this.targetNoteIdx = selection.noteIdx;
         // Find the physical fret for drawing the marker
         for (let f = 1; f <= 12; f++) {
-            if (NOTES[(STRINGS[this.targetString] + f) % 12] === this.targetNote) {
+            if ((STRINGS[this.targetString] + f) % 12 === this.targetNoteIdx) {
                 this.targetFret = f;
                 break;
             }
@@ -201,10 +201,10 @@ const KeyboardVariant = {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);
         if (!btn) return;
 
-        const isCorrect = btn.note === this.targetNote;
+        const isCorrect = btn.noteIdx === this.targetNoteIdx;
         const coords = isCorrect ? 
             engine.getFretCoordinates(this.targetString, this.targetFret) :
-            engine.getNoteCoordinates(btn.note, this.targetString);
+            engine.getNoteCoordinates(btn.noteIdx, this.targetString);
 
         engine.processResult(isCorrect, {
             visualX: coords.x, visualY: coords.y,
@@ -376,25 +376,24 @@ const IntervalVariant = {
             ctx.lineWidth = isTarget ? 3 : 1;
             KeyboardHelper.roundRect(ctx, x, centerY, sqSize, sqSize, 8, false, true);
 
-            if (i === 0 || !isTarget) {
-                if (this.showHints){
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-                    ctx.font = "14px sans-serif";
-                    ctx.fillText(interval, x + sqSize/2, centerY + 20);
+            if (this.showHints){
+                ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                ctx.font = "14px sans-serif";
+                ctx.fillText(interval, x + sqSize/2, centerY + 20);
+                if (!isTarget) {
                     ctx.fillStyle = "white";
                     ctx.font = "bold 18px sans-serif";
                     ctx.fillText(noteAtSlot, x + sqSize/2, centerY + 42);
                 }
-            } else {
-                if (this.userAttempt?.isCorrect) {
-                    ctx.fillStyle = "#4CAF50";
-                    ctx.font = "bold 20px sans-serif";
-                    ctx.fillText(this.mode === 0 ? noteAtSlot : interval, x + sqSize/2, centerY + sqSize/2 + 7);
-                } else {
-                    ctx.fillStyle = "gold";
-                    ctx.font = "bold 22px sans-serif";
-                    ctx.fillText(this.mode === 1 ? this.targetNoteName : "?", x + sqSize/2, centerY + sqSize/2 + 7);
-                }
+            }
+            if (this.userAttempt?.isCorrect) {
+                ctx.fillStyle = "#4CAF50";
+                ctx.font = "bold 20px sans-serif";
+                ctx.fillText(this.mode === 0 ? noteAtSlot : interval, x + sqSize/2, centerY + sqSize/2 + 7);
+            } else if (isTarget){
+                ctx.fillStyle = "gold";
+                ctx.font = "bold 22px sans-serif";
+                ctx.fillText(this.mode === 1 ? this.targetNoteName : "?", x + sqSize/2, centerY + sqSize/2 + 7);
             }
         });
 

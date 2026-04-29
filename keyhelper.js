@@ -1,61 +1,69 @@
 const KeyboardHelper = {
-    // Generate the two-row layout you provided
-    initButtons(engine, variant, id=101) {
+    getNoteLabel(idx, mode = "SHARP") {
+        const naming = {
+            SHARP:   NOTES,
+            FLAT:    FLAT_NAMES,
+        };
+        return naming[mode] ? naming[mode][idx % 12] : naming["SHARP"][idx % 12];
+    },
+    // Generate the two-row layout
+    initButtons(engine, variant, id = 101, namingMode = "SHARP") {
         if (!variant.buttons) variant.buttons = [];
-        const w = engine.canvas.width;
-        const h = engine.canvas.height;
+        const { width: w, height: h } = engine.canvas;
+        const { btnW: bw, btnH: bh, btnGap: gap, scale, keybfntsize } = engine.uiprop;
 
-        const uiprop = engine.uiprop;
-        const bw = uiprop.btnW, bh = uiprop.btnH, gap = uiprop.btnGap;
-        const scale = uiprop.scale;
         const totalWhiteKeys = 7;
         const whiteRowWidth = (totalWhiteKeys * bw) + ((totalWhiteKeys - 1) * gap);
-        const bottom_y = h - (scale * 70);
-
-
-        // Start X for the white keys (centered)
         const startXWhite = (w - whiteRowWidth) / 2;
-        const startYWhite = bottom_y - bh; // Bottom row y
-        const startYBlack = startYWhite - (bh + gap); // Top row
+        const startYWhite = h - (scale * 70) - bh;
+        const startYBlack = startYWhite - (bh + gap);
 
-        // 1. Define White Keys (C to B)
-        const whiteNotes = ["C", "D", "E", "F", "G", "A", "B"];
+        // White Keys: [Index, NoteLabel]
+        const whiteKeysData = [
+            { idx: 0, label: "C" }, { idx: 2, label: "D" }, { idx: 4, label: "E" },
+            { idx: 5, label: "F" }, { idx: 7, label: "G" }, { idx: 9, label: "A" }, { idx: 11, label: "B" }
+        ];
 
-        whiteNotes.forEach((note, i) => {
+        whiteKeysData.forEach((key, i) => {
             variant.buttons.push({
                 x: startXWhite + i * (bw + gap),
                 y: startYWhite,
                 w: bw, h: bh,
-                note: note,
+                noteIdx: key.idx,
+                note: this.getNoteLabel(key.idx, namingMode),
                 color: "#aaa",
-                toggleState: null,
-                fntSize: engine.uiprop.keybfntsize,
+                fntSize: keybfntsize,
                 hidden: false,
                 id: id
             });
         });
 
-        // 2. Define Black Keys with Mode-aware labels
-        const blackKeys = [
-            { note: "C#", slot: 0.5 },
-            { note: "D#", slot: 1.5 },
-            { note: "F#", slot: 3.5 },
-            { note: "G#", slot: 4.5 },
-            { note: "A#", slot: 5.5 }
+        // Black Keys: [Index, SlotPosition]
+        const blackKeysData = [
+            { idx: 1, slot: 0.5 }, { idx: 3, slot: 1.5 }, { idx: 6, slot: 3.5 },
+            { idx: 8, slot: 4.5 }, { idx: 10, slot: 5.5 }
         ];
 
-        blackKeys.forEach(bk => {
+        blackKeysData.forEach(bk => {
             variant.buttons.push({
                 x: startXWhite + bk.slot * (bw + gap),
                 y: startYBlack,
                 w: bw, h: bh,
-                note: bk.note,
+                noteIdx: bk.idx,
+                note: this.getNoteLabel(bk.idx, namingMode),
                 color: "#333",
-                toggleState: null,
-                fntSize: engine.uiprop.keybfntsize,
+                fntSize: keybfntsize,
                 hidden: false,
                 id: id
             });
+        });
+    },
+
+    updateButtonLabels(variant, mode) {
+        variant.buttons.forEach(btn => {
+            if (btn.noteIdx !== undefined) {
+                btn.note = this.getNoteLabel(btn.noteIdx, mode);
+            }
         });
     },
 

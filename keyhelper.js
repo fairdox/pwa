@@ -31,6 +31,8 @@ const KeyboardHelper = {
                 w: bw, h: bh,
                 noteIdx: key.idx,
                 note: this.getNoteLabel(key.idx, namingMode),
+                toggleState: null,
+                selected: false,
                 color: "#aaa",
                 fntSize: keybfntsize,
                 hidden: false,
@@ -51,6 +53,8 @@ const KeyboardHelper = {
                 w: bw, h: bh,
                 noteIdx: bk.idx,
                 note: this.getNoteLabel(bk.idx, namingMode),
+                toggleState: null,
+                selected: false,
                 color: "#333",
                 fntSize: keybfntsize,
                 hidden: false,
@@ -356,7 +360,7 @@ const KeyboardHelper = {
                 chordIdx: i,
                 hidden: false,
                 fntSize: engine.uiprop.keybfntsize*.9,
-                isSelected: false,
+                selected: false,
                 id: id
             });
             if (i===0) {
@@ -441,7 +445,7 @@ const KeyboardHelper = {
             if (isPressed){
                 ctx.fillStyle = "#222";
             }else{
-                if (btn?.isSelected){
+                if (btn?.selected){
                     ctx.fillStyle = "#8444bb";
                 } else{
                     ctx.fillStyle = btn.color;

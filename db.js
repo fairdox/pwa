@@ -86,8 +86,9 @@ const dbService = {
 
       if (error) throw error;
 
-      localStorage.setItem(this._theoryCacheKey, JSON.stringify(data));
-      return this.processDefinitions(data);
+      const processedData = this.processDefinitions(data);
+      localStorage.setItem(this._theoryCacheKey, JSON.stringify(processedData));
+      return processedData;
   },
 
   /**

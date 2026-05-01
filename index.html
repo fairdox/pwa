@@ -167,10 +167,10 @@ let game = null;
 async function startApp() {
     try {
         // 1. Fetch definitions via your db.js service
-        CHORD_FORMULAS = await dbService.getTheoryDefinitions(false);
+        forumlas = await dbService.getTheoryDefinitions(false);
         
         // 2. Initialize the engine with the injected data
-        game = new FretboardEngine(document.getElementById('fretboard'));
+        game = new FretboardEngine(document.getElementById('fretboard'), forumlas);
 
         // 3. start the game loop or UI rendering
         switchGame('keyboard');

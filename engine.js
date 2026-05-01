@@ -61,7 +61,8 @@ class AudioController {
     
     
 class FretboardEngine {
-    constructor(canvas) {
+    constructor(canvas, chordFormulas) {
+        CHORD_FORMULAS= chordFormulas;
         this._localStorageKey = 'fretStats';
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');

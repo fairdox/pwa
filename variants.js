@@ -599,7 +599,7 @@ const ChordCompletionVariant = {
         const objects = KeyboardHelper.addFunctionKeys(engine,this, arrows=false);
         this.lastBtn=KeyboardHelper.initChordSelectorPalette(engine, this);
         this.lastBtn.selected=true;
-        this.labeltext=CHORD_FORMULAS[this.lastBtn.chordIdx].suffix;
+        this.chordIdx=this.lastBtn.chordIdx;
         let pos = engine.getFretCoordinates(0,3);
         this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "🔊", pad, pos.y,
                                                              "#484",
@@ -651,6 +651,7 @@ const ChordCompletionVariant = {
         this.chordIdx = chordIdx;
         const type = CHORD_FORMULAS[this.chordIdx];
         this.chordLabel = type.suffix;
+        this.labeltext= type.suffix;        
         this.formula = type.formula;
         this.semitones = type.semitones;
         this.semitones=this.semitones.map(s => s % 12); // to normalize somitones that are > 12 

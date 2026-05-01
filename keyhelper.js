@@ -272,6 +272,15 @@ const KeyboardHelper = {
         });
     },
 
+
+    getButtonByToggleGroupAndGroupName(variant, toggleGroup, groupName){
+        return variant.buttons.find(btn =>  btn.toggleGroup === toggleGroup && btn.group === groupName);
+    },
+
+    getButtonByToggleGroup(variant, toggleGroupName, idx=0){
+        return variant.buttons.find(btn => btn.toggleGroup === toggleGroupName && btn.idx === idx);
+    },
+
     initChordSelectorPalette(engine, variant, id = 203) {
         if (!variant.buttons) variant.buttons = [];
         const h = engine.canvas.height;
@@ -330,7 +339,7 @@ const KeyboardHelper = {
                 toggleState: false,
                 toggleGroup: "chordGroup",
                 note: group,
-                group: `${i}`,
+                group: `${i+1}`,
                 color: "#380",
                 hidden: false,
                 callback: () => this.showGroupedChordSelector(variant, `${i+1}`),
@@ -358,7 +367,7 @@ const KeyboardHelper = {
                 formula: chord.formula,
                 semitones: chord.semitones,
                 fullLabel: chord.label,
-                chordIdx: i,
+                idx: i, // index in this group for reference when clicked
                 hidden: false,
                 fntSize: engine.uiprop.keybfntsize*.9,
                 selected: false,

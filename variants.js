@@ -594,12 +594,16 @@ const ChordCompletionVariant = {
         const scale = uiprop.scale;
         const pad = uiprop.sidePadding;
         restoreVariantState(this);
+        if (!this.chordIdx) this.chordIdx=0;
         this.showHints = false;
         this.buttons=[];
         const objects = KeyboardHelper.addFunctionKeys(engine,this, arrows=false);
-        this.lastBtn=KeyboardHelper.initChordSelectorPalette(engine, this);
-        this.lastBtn.selected=true;
-        this.chordIdx=this.lastBtn.chordIdx;
+        KeyboardHelper.initChordSelectorPalette(engine, this);
+        this.lastBtn=KeyboardHelper.getButtonByToggleGroup(this, "chordnames", this.chordIdx);
+        this.lastBtn.toggleState=true;
+        const groupBtn=KeyboardHelper.getButtonByToggleGroupAndGroupName(this,"chordGroup", this.lastBtn.group[0]);
+        groupBtn.toggleState=true;// first character of group name
+        groupBtn.callback();
         let pos = engine.getFretCoordinates(0,3);
         this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "🔊", pad, pos.y,
                                                              "#484",
@@ -677,7 +681,7 @@ const ChordCompletionVariant = {
     setRoot(engine, name, tappedIdx) {
         this.chordSpelling = engine.getChordSpelling(name, this.semitones, this.formula);
         const normName= this.chordSpelling[0];
-        this.labeltext = `${normName || "?"}${this.chordLabel || "?"}`;
+        this.labeltext = `${normName || "?"} ${this.chordLabel || "?"}`;
         this.rootNote = name;
         this.rootIdx = tappedIdx;        
         return normName;
@@ -689,12 +693,12 @@ const ChordCompletionVariant = {
         if (btn) {
             if (btn.id === 203){
                 this.lastBtn = btn;
-                this.setChord(engine, btn.chordIdx);
+                this.setChord(engine, btn.idx);
             }
             if (this.rootNote){
                 this.chordSpelling = engine.getChordSpelling(this.rootNote, this.semitones, this.formula);
                 engine.addVoicingToHistory(this.rootNote, this.lastBtn.suffix);
-                this.labeltext = `${this.chordSpelling[0] || "?"}${this.chordLabel || "?"}`;
+                this.labeltext = `${this.chordSpelling[0] || "?"} ${this.chordLabel || "?"}`;
             }
             return;
         }

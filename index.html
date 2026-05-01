@@ -173,7 +173,7 @@ async function startApp() {
         game = new FretboardEngine(document.getElementById('fretboard'), forumlas);
 
         // 3. start the game loop or UI rendering
-        switchGame('keyboard');
+        localStorage.getItem('lastGame') ? switchGame(localStorage.getItem('lastGame')) : switchGame('keyboard');
         game.draw();
 
     } catch (err) {
@@ -257,6 +257,7 @@ function switchGame(type) {
     game.calculateFrets() 
     toggleMenu(false); // Close the drawer after selection
     game.reset();
+    localStorage.setItem('lastGame', type);
 }
 
 function toggleMenu(isOpen) {

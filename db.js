@@ -51,6 +51,26 @@ const dbService = {
     localStorage.removeItem(this._theoryCacheKey);
     this._chordCache.clear();
   },
+
+
+  processDefinitions(data) {
+        // Map of intervals to semitones for runtime calculation
+        const intervalMap = {
+            "1": 0, "b2": 1, "2": 2, "#2": 3, "b3": 3, "3": 4, "4": 5,
+            "#4": 6, "b5": 6, "5": 7, "#5": 8, "b6": 8, "6": 9, "bb7": 9,
+            "b7": 10, "7": 11, "b9": 13, "9": 14, "#9": 15, "11": 17,
+            "#11": 18, "13": 21
+        };
+      return data.map(item => ({
+          label: item.label,
+          suffix: item.suffix,
+          quality: item.quality,
+          formula: item.formula,
+          variants: item.variants,
+          group: item.group,
+          semitones: item.formula.map(interval => intervalMap[interval] || 0)
+      }));
+  },
   /**
    * 1. Load Theory (Formulas)
    * Strategy: LocalStorage (Persistence across reloads)
@@ -67,7 +87,7 @@ const dbService = {
       if (error) throw error;
 
       localStorage.setItem(this._theoryCacheKey, JSON.stringify(data));
-      return data;
+      return this.processDefinitions(data);
   },
 
   /**

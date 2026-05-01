@@ -598,7 +598,7 @@ const ChordCompletionVariant = {
         this.buttons=[];
         const objects = KeyboardHelper.addFunctionKeys(engine,this, arrows=false);
         this.lastBtn=KeyboardHelper.initChordSelectorPalette(engine, this);
-        this.lastBtn.isSelected=true;
+        this.lastBtn.selected=true;
         this.labeltext=CHORD_FORMULAS[this.lastBtn.chordIdx].suffix;
         let pos = engine.getFretCoordinates(0,3);
         this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "🔊", pad, pos.y,
@@ -687,8 +687,6 @@ const ChordCompletionVariant = {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y); 
         if (btn) {
             if (btn.id === 203){
-                if (this.lastBtn) this.lastBtn.isSelected = false;
-                btn.isSelected = true;
                 this.lastBtn = btn;
                 this.setChord(engine, btn.chordIdx);
             }
@@ -846,11 +844,9 @@ const IntervalSearchVariant = {
         const btn = KeyboardHelper.checkClick(this.buttons, x, y);
         if (btn) {
             if (btn.id === 203){
-                if (this.lastBtn) this.lastBtn.isSelected = false;
                 this.chordLabel = btn.note;
                 this.semitones = btn.semitones;
                 this.formula = btn.formula;
-                btn.isSelected = true;
                 this.lastBtn = btn;
             }
             this.chordSpelling = engine.getChordSpelling(this.rootNote, this.semitones, this.formula);

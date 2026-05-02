@@ -760,7 +760,7 @@ class FretboardEngine {
         if (this.showDebug && this.isAutoPaused) {
             this.renderStats(true);
         } else {
-            this.renderStats(false);
+           if (this.showDebug) this.renderStats(false);
         }
 
         const { firstStringX, spacingX , offsetX} = this.getFretboardLayout();

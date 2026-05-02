@@ -212,8 +212,10 @@ const KeyboardHelper = {
 
         const cols = 5;
         
-        // Get all unique intervals from your specific CHORD_FORMULAS array
-        const masterList = getUniqueIntervals(CHORD_FORMULAS);
+        // Get all unique intervals in order of semitones
+        const masterList = Object.entries(dbService._intervalMap)
+                        .sort((a,b) => a[1] - b[1])
+                        .map(entry => entry[0]);
         const rows=Math.ceil(masterList.length/cols) ;
         const totalW = (cols * btnW) + ((cols - 1) * gap);
         const totalH = (rows * btnH) + (rows*gap)  ; 
@@ -233,8 +235,9 @@ const KeyboardHelper = {
                 w: btnW,
                 h: btnH,
                 note: interval,
-                // If it's in the chord, give it a subtle border or different shade
-                color: interval === "1" ? "#cc0000" : (isInCurrentChord ? "#666" : "#333"),
+                color: "#666" ,
+                toggleState: null,
+                selected: false,
                 borderColor: isInCurrentChord ? "gold" : "transparent",
                 hidden: false,
                 id: id
@@ -281,8 +284,9 @@ const KeyboardHelper = {
         return variant.buttons.find(btn => btn.toggleGroup === toggleGroupName && btn.idx === idx);
     },
 
-    initChordSelectorPalette(engine, variant, id = 203) {
+    initChordSelectorPalette(engine, variant, addVariantButtons=true) {
         if (!variant.buttons) variant.buttons = [];
+        const id = 203;
         const h = engine.canvas.height;
         const w = engine.canvas.width;
         const pad = engine.uiprop.sidePadding;
@@ -308,28 +312,30 @@ const KeyboardHelper = {
         const startY = (h - totalH - 15*scale);
         const pos = engine.getFretCoordinates(0,5);
 
+        if (addVariantButtons){
+            // Right column: Voicing Variants buttons (v0, v1, v2...)
+            for ( let i=0; i<=4; i++){
+                variant.buttons.push({
+                    x: w-optbtnw-rpad,
+                    y: pos.y + i * (optbtnh + gap),
+                    w: optbtnw,
+                    h: optbtnh,
+                    toggleState: false,
+                    toggleGroup: "chordVariant", // identify this toggle group, only one can be active at a time
+                    note: `v${i+1}`,
+                    chordVariant: i,
+                    color: "#380",
+                    hidden: false,
+                    selected: false,
+                    fntSize: engine.uiprop.keybfntsize*.9,
+                    toggleTrueCallback: () => engine.setVoicingVariant(i),
+                    toggleFalseCallback: () => engine.setVoicingVariant(null), 
+                    id: id
+                });
+            };
+        }
 
-        // Right column: Voicing Variants buttons (v0, v1, v2...)
-        for ( let i=0; i<=4; i++){
-            variant.buttons.push({
-                x: w-optbtnw-rpad,
-                y: pos.y + i * (optbtnh + gap),
-                w: optbtnw,
-                h: optbtnh,
-                toggleState: false,
-                toggleGroup: "chordVariant", // identify this toggle group, only one can be active at a time
-                note: `v${i+1}`,
-                chordVariant: i,
-                color: "#380",
-                hidden: false,
-                selected: false,
-                toggleTrueCallback: () => engine.setVoicingVariant(i),
-                toggleFalseCallback: () => engine.setVoicingVariant(null), 
-                id: id
-            });
-        };
-
-        const chordGroups = ["Min", "Maj", "Dom", "Other", "Recent"]; 
+        const chordGroups = ["Min", "Maj", "Dom", "Other"]; 
         chordGroups.forEach((group,i)    => {
             variant.buttons.push({
                 x: lpad ,
@@ -342,17 +348,24 @@ const KeyboardHelper = {
                 group: `${i+1}`,
                 color: "#380",
                 hidden: false,
+                fntSize: engine.uiprop.keybfntsize*.9,
                 callback: () => this.showGroupedChordSelector(variant, `${i+1}`),
                 id: id
             });
         });
 
-        let firstBtn = null;
         let ci = 0;
         CHORD_FORMULAS.forEach((chord, i) => {
+            if (i===0) {
+                lastGroupe=chord.group.charAt(0);
+            }
+            if (chord.group.charAt(0) !== lastGroupe){
+                ci=0;
+                lastGroupe=chord.group.charAt(0);
+            }
             const col = ci % maxcols;
             const row = Math.floor(ci / maxcols);
-            ci++;
+            console.log(chord.group,  chord.label, row, col);
             variant.buttons.push({
                 x: startX + col * (chordBtnW + gap),
                 y: startY + row * (chordBtnH + gap),
@@ -373,17 +386,9 @@ const KeyboardHelper = {
                 selected: false,
                 id: id
             });
-            if (i===0) {
-                firstBtn=variant.buttons[variant.buttons.length-1];
-                lastGroupe=chord.group.charAt(0);
-            }
-            if (chord.group.charAt(0) !== lastGroupe){
-                ci=0;
-                lastGroupe=chord.group.charAt(0);
-            }
+            ci++;
             
         });
-        return firstBtn;
     },
     
     hideButtons(variant, id) {

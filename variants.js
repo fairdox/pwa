@@ -244,22 +244,6 @@ const KeyboardVariant = {
     }
 };
 
-function getUniqueIntervals(formulas) {
-    const allIntervals = [];
-    formulas.forEach(chord => {
-        chord.formula.forEach(interval => {
-            if (!allIntervals.includes(interval)) {
-                allIntervals.push(interval);
-            }
-        });
-    });
-
-    // Optional: Sort them logically so the palette stays organized
-    // We want 1, 2, b3, 3... not a random order.
-    const order = ["1", "b2", "2", "b3", "3", "4", "b5", "5", "#5", "b6", "6", "b7", "7", "9", "11", "13"];
-    return allIntervals.sort((a, b) => order.indexOf(a) - order.indexOf(b));
-}
-
 const IntervalVariant = {
     label:"",
     statKey: "W1",
@@ -608,7 +592,7 @@ const ChordCompletionVariant = {
         this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "🔊", pad, pos.y,
                                                              "#484",
                                                               () => this.playChord(engine)
-                                                              , null,scale*30,scale*25,18);
+                                                              , null,scale*35,scale*35,19);
 
         this.setChord(engine,this.chordIdx);
         this.initGame(engine);
@@ -814,10 +798,10 @@ const IntervalSearchVariant = {
     label:"",
     statKey: "IS1",
     init(engine) {
-        this.labels = ["2", "b3", "3", "4", "b5", "5", "#5", "6", "b7", "7", "9", "#9", "11", "#11",  "13"];
-        this.st =     [  2,    3,   4,   5,    6,   7,    8,   9,   10,  11,  14,   15,   17,    18,   21 ];
+        this.labels = ["2", "b3", "3", "4", "b5", "5", "#5", "6", "bb7", "b7", "7", "9", "#9", "11", "#11",  "13"];
+        this.st =     [  2,    3,   4,   5,    6,   7,    8,   9,     9,   10,  11,  14,   15,   17,    18,   21 ];
         this.buttons=[];
-        KeyboardHelper.initChordSelectorPalette(engine, this);
+        KeyboardHelper.initChordSelectorPalette(engine, this, false);
         this.rootNoteLabel = null;
         this.chordLabel = null;
         this.semitones = null;
@@ -855,7 +839,7 @@ const IntervalSearchVariant = {
                 this.lastBtn = btn;
             }
             this.chordSpelling = engine.getChordSpelling(this.rootNote, this.semitones, this.formula);
-            this.engLabel.text = `${this.chordSpelling[0] || "?"}${this.chordLabel || "?"}`;
+            this.engLabel.text = `${this.chordSpelling[0] || "?"} ${this.chordLabel || "?"}`;
             return;
         }
         if (!name) return;

@@ -15,6 +15,12 @@ const _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const dbService = {
   _theoryCacheKey: 'fretboard_theory_defs',
   _chordCache: new Map(), // In-memory cache for voicings (key + suffix)
+  _intervalMap: {
+            "1": 0, "b2": 1, "2": 2, "#2": 3, "b3": 3, "3": 4, "4": 5,
+            "#4": 6, "b5": 6, "5": 7, "#5": 8, "b6": 8, "6": 9, "bb7": 9,
+            "b7": 10, "7": 11, "b9": 13, "9": 14, "#9": 15, "11": 17,
+            "#11": 18, "13": 21
+        },
   // --- AUTHENTICATION ---
   async signIn() {
     const { error } = await _supabase.auth.signInWithOAuth({
@@ -52,15 +58,7 @@ const dbService = {
     this._chordCache.clear();
   },
 
-
   processDefinitions(data) {
-        // Map of intervals to semitones for runtime calculation
-        const intervalMap = {
-            "1": 0, "b2": 1, "2": 2, "#2": 3, "b3": 3, "3": 4, "4": 5,
-            "#4": 6, "b5": 6, "5": 7, "#5": 8, "b6": 8, "6": 9, "bb7": 9,
-            "b7": 10, "7": 11, "b9": 13, "9": 14, "#9": 15, "11": 17,
-            "#11": 18, "13": 21
-        };
       return data.map(item => ({
           label: item.label,
           suffix: item.suffix,
@@ -68,7 +66,7 @@ const dbService = {
           formula: item.formula,
           variants: item.variants,
           group: item.group,
-          semitones: item.formula.map(interval => intervalMap[interval] || 0)
+          semitones: item.formula.map(interval => this._intervalMap[interval] || 0)
       }));
   },
   /**

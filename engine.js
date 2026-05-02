@@ -80,7 +80,7 @@ class FretboardEngine {
         this.lastTapTime = Date.now();
         
         this.showNotes = false;
-        this.showDebug = true;
+        this.showDebug = false;
         this.showHistory = true;
         this.show3D = false;
         this.hasFret= true;
@@ -155,7 +155,7 @@ class FretboardEngine {
             scale: this.scale,
             btnW: baseBtnW * this.scale,
             btnH: baseBtnH * this.scale,
-            btnGap: 8 * this.scale,
+            btnGap: 10 * this.scale,
             fctbtnW: 45 * this.scale,
             fctbtnH: 30 * this.scale,
             fctfntsize: 16 * this.scale,

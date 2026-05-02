@@ -297,9 +297,9 @@ const KeyboardHelper = {
         const rpad = pad ;
         const uiprop = engine.uiprop;
         const btnW = 40*scale,
-              btnH = 20*scale,
+              btnH = 25*scale,
               chordBtnW = 50*scale,
-              chordBtnH = 20*scale,
+              chordBtnH = 30*scale,
               gap = uiprop.btnGap;
 
         const maxcols = 6;

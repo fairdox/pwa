@@ -5,6 +5,9 @@ const StringBasePitches = [40, 45, 50, 55, 59, 64];
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
 const MARKERS = [3, 5, 7, 9, 12];
 let CHORD_FORMULAS=null; // to be loaded from db
+const designWidth = 390;
+const designHeight = 797;
+
 
 const CAGED_DATA = {
     "C": { color: "#FF4500", min: [0, 0, 0, 0, 1, 0], max: [3, 3, 2, 2, 3, 3] }, // Orange-Red
@@ -65,8 +68,8 @@ class FretboardEngine {
         CHORD_FORMULAS= chordFormulas;
         this._localStorageKey = 'fretStats';
         this.canvas = canvas;
-        this.canvas.width = 390;
-        this.canvas.height = 797;
+        this.canvas.width = designWidth;
+        this.canvas.height = designHeight;
         this.ctx = canvas.getContext('2d');
         this.fretPositions = [];
         this.variant = null;
@@ -124,7 +127,7 @@ class FretboardEngine {
         this.resize();
 
         const display = document.getElementById('game-info-display');
-        display.innerHTML = `Width: ${window.innerWidth}px | Height: ${window.innerHeight}px`;
+        display.innerHTML = `${this.canvas.width}x${this.canvas.height}  Window ${window.innerWidth}x${window.innerHeight}`;
     }
 
     clearLocalSorage() {
@@ -132,12 +135,26 @@ class FretboardEngine {
     }
 
     resize() {
-        //this.canvas.width = window.innerWidth;
-        //this.canvas.height = window.innerHeight;
-        const designWidth = 390, designHeight = 797; 
-        const scaleWindow = Math.min(window.innerWidth / designWidth, window.innerHeight / designHeight);
-        this.canvas.style.width = (designWidth * scaleWindow) + 'px';
-        this.canvas.style.height = (designHeight * scaleWindow) + 'px';
+        this.isLandscape = window.innerWidth > window.innerHeight;
+        const app = document.getElementById("app");
+        if (this.isLandscape) {
+            app.style.transform = "translate(-50%, -50%) rotate(-90deg)";
+        } else {
+            app.style.transform = "translate(-50%, -50%) rotate(0deg)";
+        }        
+        const vw = window.visualViewport?.width || window.innerWidth;
+        const vh = window.visualViewport?.height || window.innerHeight;
+
+        const usableWidth  = this.isLandscape ? vh : vw;
+        const usableHeight = this.isLandscape ? vw : vh;
+
+        const scale = Math.min(
+            usableWidth / designWidth,
+            usableHeight / designHeight
+        );
+
+        this.canvas.style.width  = (designWidth * scale) + 'px';
+        this.canvas.style.height = (designHeight * scale) + 'px';
 
         this.scale = this.canvas.width / designWidth;
         this.scaleH = this.canvas.height / designHeight;
@@ -326,26 +343,27 @@ class FretboardEngine {
         e.preventDefault();
     
         const rect = this.canvas.getBoundingClientRect();
-        let clientX, clientY;
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-        if (e.touches && e.touches.length > 0) {
-            // It is a touch event
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-        } else {
-            // It is a mouse event
-            clientX = e.clientX;
-            clientY = e.clientY;
+        // normalize
+        let nx = (clientX - rect.left) / rect.width;
+        let ny = (clientY - rect.top) / rect.height;
+
+        const isLandscape = window.innerWidth > window.innerHeight;
+
+        // rotate -90°
+        if (isLandscape) {
+            const rx = 1 - ny;
+            const ry = nx;
+
+            nx = rx;
+            ny = ry;
         }
 
-        // 1. Get the offset from the top-left of the canvas
-        const offsetX = clientX - rect.left;
-        const offsetY = clientY - rect.top;
-
-        // 2. Scale the coordinates to match the internal 390x797 resolution
-        // (Internal Width / CSS Displayed Width)
-        const tx = offsetX * (this.canvas.width / rect.width);
-        const ty = offsetY * (this.canvas.height / rect.height);        
+        // to canvas space
+        const tx = nx * this.canvas.width;
+        const ty = ny * this.canvas.height;
         this.lastTapX = tx;
         this.lastTapY = ty;
         this.tapCircleRadius = 20; // Reset the radius for the visual effect

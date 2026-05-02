@@ -10,16 +10,10 @@
         body, html {
             margin: 0;
             padding: 0;
+            overflow: hidden;
             height: 100%;
-            background-color: #1a1a1a; /* Dark background for the letterbox effect */
-        }
-
-        .game-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
             width: 100%;
+            background-color: #1a1a1a; /* Dark background for the letterbox effect */
         }
 
         #fretboard {
@@ -27,7 +21,9 @@
             background-color: #000;
             box-shadow: 0 0 20px rgba(0,0,0,0.5); /* Adds a slight shadow to define the 'screen' */
         }        
-        canvas { display: block; }
+        canvas {
+            display: block;            
+        }
        
         .ui-layer { 
             position: absolute; 
@@ -39,38 +35,6 @@
             align-items: center; 
             pointer-events: none; 
             z-index: 50; 
-        }
-
-        /* A dedicated overlay that covers the entire game area */
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: rgba(0, 0, 0, 0.7); /* Dims the fretboard until start */
-            z-index: 100; /* Higher than your ui-layer z-index: 50 */
-            transition: opacity 0.5s ease;
-        }
-
-        #start-button {
-            pointer-events: auto; /* Re-enable clicks for the button itself */
-            padding: 15px 40px;
-            font-size: 24px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-weight: bold;
-            color: #ffffff;
-            background: #2c3e50;
-            border: 2px solid #3498db;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-            text-transform: uppercase;
-            letter-spacing: 2px;
         }
 
         .btn-group { display: flex; gap: 8px; pointer-events: auto; }
@@ -152,31 +116,23 @@
         .option-row label { font-size: 1.2em; cursor: pointer; }
         .option-row input { transform: scale(1.6); margin-right: 15px; vertical-align: middle; }
 
-        /* Helper class to remove the screen */
-        .hidden {
-            display: none !important;
+        #app {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform-origin: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        @media screen and (orientation: landscape) {
-            #game-container {
-                transform: rotate(-90deg);
-                transform-origin: center;
-                width: 100vh;
-                height: 100vw;
-                overflow: hidden;
-            }
-        }
     </style>
 </head>
 <body>
 
 
-<div id="start-screen" class="overlay">
-    <button id="start-button">START</button>
-</div>
-
-<div class="game-container">
-    <canvas id="fretboard"></canvas>
+<div id="app">
+    <canvas id="fretboard" ></canvas>
 </div>
 
 <button id="menuTrigger" onclick="toggleMenu(true)">☰</button>
@@ -215,9 +171,7 @@
     <button onclick="toggleMenuPage(false)" style="margin-top:30px; padding:15px 40px; font-size: 1.1em; background: #444; border-radius: 10px;">CLOSE & RESUME</button>
     <br><br>
     <button onclick="clearFretStats()" style="background: #622; border-color: #844; font-size: 0.8em;">Clear All Progress</button>
-    <div>
-        <p id="game-info-display">Calculating...</p>
-    </div>
+    <p id="game-info-display">Calculating...</p>
 
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -229,7 +183,7 @@
 <script>
 let game = null;
 
-async function readyApp() {
+async function startApp() {
     try {
         // 1. Fetch definitions via your db.js service
         forumlas = await dbService.getTheoryDefinitions(false);
@@ -239,6 +193,8 @@ async function readyApp() {
 
         // 3. start the game loop or UI rendering
         localStorage.getItem('lastGame') ? switchGame(localStorage.getItem('lastGame')) : switchGame('keyboard');
+        const lastGame = localStorage.getItem('lastGame');
+        lastGame ? switchGame(lastGame) : switchGame('keyboard');
         game.draw();
 
     } catch (err) {
@@ -350,31 +306,8 @@ function clearFretStats() {
     }
 }
 
-const startScreen = document.getElementById('start-screen');
-const startButton = document.getElementById('start-button');
-startButton.addEventListener('click', async () => {
-    // Check for fullscreen capability
-    confirm("locking orientation");
-    if (document.documentElement.requestFullscreen) {
-        try {
-            await document.documentElement.requestFullscreen();
-            
-            if (screen.orientation && screen.orientation.lock) {
-                await screen.orientation.lock('portrait-primary');
-            }
-        } catch (e) {
-            confirm("locking orientation failed");
-            console.warn("Fullscreen or orientation lock failed:", e);
-        }
-    }
 
-    startScreen.classList.add('hidden');
-    const lastGame = localStorage.getItem('lastGame');
-    lastGame ? switchGame(lastGame) : switchGame('keyboard');
-    game.draw();
-});
-
-readyApp();
+startApp();
 
 
 

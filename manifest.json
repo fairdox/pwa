@@ -1,10 +1,16 @@
 {
-  "name": "Fret Trainer",
+  "name": "Fretboard Trainer",
   "short_name": "Fret",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
+  "orientation": {
+    "name": "Fretboard Trainer",
+    "display": "standalone",
+    "orientation": "portrait",
+    "start_url": "/index.html"
+  },
   "icons": [
     {
       "src": "icon-192.png",

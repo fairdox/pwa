@@ -65,6 +65,8 @@ class FretboardEngine {
         CHORD_FORMULAS= chordFormulas;
         this._localStorageKey = 'fretStats';
         this.canvas = canvas;
+        this.canvas.width = 390;
+        this.canvas.height = 797;
         this.ctx = canvas.getContext('2d');
         this.fretPositions = [];
         this.variant = null;
@@ -122,7 +124,7 @@ class FretboardEngine {
         this.resize();
 
         const display = document.getElementById('game-info-display');
-        display.innerHTML = `Width: ${canvas.width}px | Height: ${canvas.height}px`;
+        display.innerHTML = `Width: ${window.innerWidth}px | Height: ${window.innerHeight}px`;
     }
 
     clearLocalSorage() {
@@ -130,9 +132,13 @@ class FretboardEngine {
     }
 
     resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
+        //this.canvas.width = window.innerWidth;
+        //this.canvas.height = window.innerHeight;
         const designWidth = 390, designHeight = 797; 
+        const scaleWindow = Math.min(window.innerWidth / designWidth, window.innerHeight / designHeight);
+        this.canvas.style.width = (designWidth * scaleWindow) + 'px';
+        this.canvas.style.height = (designHeight * scaleWindow) + 'px';
+
         this.scale = this.canvas.width / designWidth;
         this.scaleH = this.canvas.height / designHeight;
         this.marginX = 25 * this.scale;
@@ -332,8 +338,14 @@ class FretboardEngine {
             clientY = e.clientY;
         }
 
-        const tx = Math.round(clientX - rect.left);
-        const ty = Math.round(clientY - rect.top);
+        // 1. Get the offset from the top-left of the canvas
+        const offsetX = clientX - rect.left;
+        const offsetY = clientY - rect.top;
+
+        // 2. Scale the coordinates to match the internal 390x797 resolution
+        // (Internal Width / CSS Displayed Width)
+        const tx = offsetX * (this.canvas.width / rect.width);
+        const ty = offsetY * (this.canvas.height / rect.height);        
         this.lastTapX = tx;
         this.lastTapY = ty;
         this.tapCircleRadius = 20; // Reset the radius for the visual effect

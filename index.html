@@ -7,6 +7,26 @@
     <title>Fret Trainer Pro</title>
     <style>
         body { margin: 0; background: black; overflow: hidden; touch-action: none; font-family: sans-serif; color: white; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: #1a1a1a; /* Dark background for the letterbox effect */
+        }
+
+        .game-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        #fretboard {
+            
+            background-color: #000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); /* Adds a slight shadow to define the 'screen' */
+        }        
         canvas { display: block; }
        
         .ui-layer { 
@@ -103,7 +123,9 @@
 </head>
 <body>
 
-<canvas id="fretboard"></canvas>
+<div class="game-container">
+    <canvas id="fretboard"></canvas>
+</div>
 
 <button id="menuTrigger" onclick="toggleMenu(true)">☰</button>
 <div id="sideMenu" class="menu-hidden">

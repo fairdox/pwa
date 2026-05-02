@@ -156,6 +156,16 @@
         .hidden {
             display: none !important;
         }
+
+        @media screen and (orientation: landscape) {
+            #game-container {
+                transform: rotate(-90deg);
+                transform-origin: center;
+                width: 100vh;
+                height: 100vw;
+                overflow: hidden;
+            }
+        }
     </style>
 </head>
 <body>
@@ -343,20 +353,25 @@ function clearFretStats() {
 const startScreen = document.getElementById('start-screen');
 const startButton = document.getElementById('start-button');
 startButton.addEventListener('click', async () => {
-    // Lock orientation for mobile
-    if (screen.orientation && screen.orientation.lock) {
+    // Check for fullscreen capability
+    confirm("locking orientation");
+    if (document.documentElement.requestFullscreen) {
         try {
-            await screen.orientation.lock('portrait-primary');
+            await document.documentElement.requestFullscreen();
+            
+            if (screen.orientation && screen.orientation.lock) {
+                await screen.orientation.lock('portrait-primary');
+            }
         } catch (e) {
-            console.warn("Orientation lock ignored");
+            confirm("locking orientation failed");
+            console.warn("Fullscreen or orientation lock failed:", e);
         }
     }
 
-    // Hide the start screen
     startScreen.classList.add('hidden');
-    localStorage.getItem('lastGame') ? switchGame(localStorage.getItem('lastGame')) : switchGame('keyboard');
+    const lastGame = localStorage.getItem('lastGame');
+    lastGame ? switchGame(lastGame) : switchGame('keyboard');
     game.draw();
-
 });
 
 readyApp();

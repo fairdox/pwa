@@ -350,10 +350,8 @@ class FretboardEngine {
         let nx = (clientX - rect.left) / rect.width;
         let ny = (clientY - rect.top) / rect.height;
 
-        const isLandscape = window.innerWidth > window.innerHeight;
-
         // rotate -90°
-        if (isLandscape) {
+        if (this.isLandscape) {
             const rx = 1 - ny;
             const ry = nx;
 

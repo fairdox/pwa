@@ -365,7 +365,7 @@ const KeyboardHelper = {
             }
             const col = ci % maxcols;
             const row = Math.floor(ci / maxcols);
-            console.log(chord.group,  chord.label, row, col);
+            //console.log(chord.group,  chord.label, row, col);
             variant.buttons.push({
                 x: startX + col * (chordBtnW + gap),
                 y: startY + row * (chordBtnH + gap),
@@ -440,6 +440,7 @@ const KeyboardHelper = {
     // Standard rendering loop
     draw(engine, buttons) {
         const ctx=engine.ctx; 
+        const rotate = engine.isLandscape ? 90 * Math.PI / 180 : 0;
         buttons.forEach(btn => {
             if (btn.hidden) return; 
             const isPressed = btn.clickTime && (Date.now() - btn.clickTime) < 100;
@@ -480,7 +481,13 @@ const KeyboardHelper = {
             ctx.font = `bold ${btn.fntSize}px sans-serif`;
             
             // Center the text + the offset so the label "sinks" with the button
-            ctx.fillText(btn.note, bx + btn.w/2, by + btn.h/2 );
+            ctx.save();
+            ctx.translate(bx + btn.w/2, by + btn.h/2 );
+            ctx.rotate(rotate );
+            ctx.fillText(btn.note, 0, 0);
+            ctx.rotate(-rotate);
+            ctx.restore();
+            
     
             // 5. Cleanup click state
             if (btn.clickTime && (Date.now() - btn.clickTime) >= 100) {

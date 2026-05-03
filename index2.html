@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pitchfinder Test</title>
+    <!-- Try this specific version from cdnjs which is often more stable for globals -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pitchfinder/2.3.0/pitchfinder.min.js"></script>
+</head>
+<body>
+
+    <button id="startBtn" style="padding: 20px;">Start Listening</button>
+    <h1 id="display">--- Hz</h1>
+
+    <script>
+        // Check where the library ended up
+        const Pitchfinder = window.Pitchfinder || window.pitchfinder;
+
+        if (!Pitchfinder) {
+            console.error("Pitchfinder library failed to attach to window.");
+            document.body.innerHTML += "<p style='color:red'>Library Load Error. Check Console.</p>";
+        }
+
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const source = audioCtx.createMediaStreamSource(stream);
+                
+                // Create the YIN detector
+                // Note: The structure is Pitchfinder.frequencies.YIN
+                const detectPitch = Pitchfinder.frequencies.YIN({ 
+                    sampleRate: audioCtx.sampleRate 
+                });
+
+                const processor = audioCtx.createScriptProcessor(2048, 1, 1);
+                
+                processor.onaudioprocess = (e) => {
+                    const float32Data = e.inputBuffer.getChannelData(0);
+                    const pitch = detectPitch(float32Data);
+                    
+                    document.getElementById('display').innerText = pitch 
+                        ? pitch.toFixed(1) + " Hz" 
+                        : "No Pitch";
+                };
+
+                source.connect(processor);
+                processor.connect(audioCtx.destination);
+                
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('startBtn').innerText = "Listening...";
+                
+            } catch (err) {
+                alert("Microphone access denied or error: " + err);
+            }
+        });
+    </script>
+</body>
+</html>

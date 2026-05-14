@@ -94,7 +94,14 @@ const dbService = {
    * Strategy: In-memory Map (Performance during session)
    */
   async getChordVoicings(key, suffix) {
-      const cacheKey = `${key}-${suffix}`;
+      const keyMap = { "Db": "Csharp",  "Gb": "Fsharp", 
+                        "A#": "Bb", "C#": "Csharp", "D#": "Eb", "F#": "Fsharp", "G#": "Ab", 
+        };
+      const chordMap = {  "min": "minor", "m": "minor", "maj": "major" };
+      const normalizedKey = keyMap[key] || key;
+      const normalizedSuffix = chordMap[suffix] || suffix;
+
+      const cacheKey = `${normalizedKey}-${normalizedSuffix}`;
       
       // Return from memory if already fetched this session
       if (this._chordCache.has(cacheKey)) {
@@ -104,12 +111,12 @@ const dbService = {
       const { data, error } = await _supabase
           .from('guitar_chords')
           .select('positions')
-          .eq('key', key)
-          .eq('suffix', suffix)
+          .eq('key', normalizedKey)
+          .eq('suffix', normalizedSuffix)
           .single();
 
       if (error) {
-          console.warn(`No voicings found for ${key}${suffix}`);
+          console.warn(`No voicings found for ${key}${suffix}  (normalized: ${normalizedKey}${normalizedSuffix})`);
           return null;
       }
 

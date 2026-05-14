@@ -431,18 +431,13 @@ class FretboardEngine {
      */
     async addVoicingToHistory(key, suffix, variantIdx = null) {
         try {
-            const keyMap = { "Db": "Csharp",  "Gb": "Fsharp", 
-                             "A#": "Bb", "C#": "Csharp", "D#": "Eb", "F#": "Fsharp", "G#": "Ab", 
-             };
-            const normalizedKey = keyMap[key] || key;
-
             let positions = [];
             if (variantIdx === null) 
                 variantIdx = this._currentChordVariant; // If no specific variant is requested, use the last one set by the buttons
             if (variantIdx !== null) {
-                positions = await dbService.getChordVoicings(normalizedKey, suffix);
+                positions = await dbService.getChordVoicings(key, suffix);
                 if (!positions || !positions[variantIdx]) {
-                    console.warn(`Voicing ${variantIdx} not found for ${key} (${normalizedKey}) ${suffix}`);
+                    console.warn(`Voicing ${variantIdx} not found for ${key} (${key}) ${suffix}`);
                     return;
                 }
             }

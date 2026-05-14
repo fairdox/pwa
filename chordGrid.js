@@ -3,7 +3,7 @@ const ChordGridVariant = {
     skipHeatMap: true,
     
     song: {
-        bpm: 100,
+        bpm: 78,
         rows: 5,
         cols: 4,
         grid: [

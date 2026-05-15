@@ -60,7 +60,7 @@ function drawChordDiagram(ctx, note, chord, position, highlight, x, y, w, h, sta
 
     // 3. Draw Starting Fret Number
     if (startingFret > 1) {
-        ctx.fillStyle = '#000';
+        ctx.fillStyle = '#AAA';
         ctx.font = `${fretGap * 0.5}px sans-serif`;
         ctx.textAlign = 'right';
         ctx.fillText(startingFret, x + sideMargin - 5, y + topMargin + (fretGap * 0.75));

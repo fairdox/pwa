@@ -37,7 +37,38 @@ const ChordGridVariant = {
             { chords: [{ n: "Am", b: 4 }] },
             { chords: [{ n: "Am", b: 4 }] }
         ]
-    ]},
+    ],
+    chordDB: {
+        "Dm7/C": {
+            "frets": [-1, 3, 0, 2, 1, 1], // Corrected example frets for Dm7/C
+            "barres": [1], 
+            "baseFret": 1,
+            "fingers": [0, 3, 0, 2, 3, 1] // Optional but helpful for future-proofing
+        },
+        "Dm6": {
+            "frets": [-1, 2, 0, 2, 3, 1],
+            "barres": [],
+            "baseFret": 1
+        },
+        "Cmaj7": {
+            "frets": [-1, 3, 2, 0, 0, 0],
+            "barres": [],
+            "baseFret": 1
+        },
+        "Am7/G": {
+            "frets": [3, 0, 2, 2, 1, 0],
+            "barres": [],
+            "baseFret": 1
+        },
+        "C#dim": {
+            "frets": [-1, 1, 2, 0, 2, 0],
+            "barres": [],
+            "baseFret": 1
+        },
+
+
+    }
+    },
 
     init(engine) {
         this.startTime = Date.now();
@@ -59,6 +90,13 @@ const ChordGridVariant = {
 
         // 3. Start the async loading process
         Promise.all(uniqueChordNames.map(async (chordName) => {
+            // 1. Check local song-specific DB first
+            if (song.chordDB && song.chordDB[chordName]) {
+                return { 
+                    chordName: chordName, 
+                    positions: [song.chordDB[chordName]] // Wrap in array to match format
+                };
+            }
             // You'll need a way to split "Bm7" into "B" and "m7" 
             // Assuming a helper like parseChordName(chordName) exists
             const { note, suffix } = this.parseChordName(chordName); 

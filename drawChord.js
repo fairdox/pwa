@@ -12,7 +12,8 @@
  * @param {number} [startFretArg] - Explicit starting fret.
  * @param {number} [numFretsArg] - Explicit number of frets to display.
  */
-function drawChordDiagram(ctx, note, chord, position, highlight, x, y, w, h, startFretArg, numFretsArg) {
+function drawChordDiagram(ctx, note, chord, position, highlight, x, y, w, h,
+     startFretArg, numFretsArg) {
      // Layout Constants
     const topMargin = h * 0.2;
     const sideMargin = w * 0.12;
@@ -30,10 +31,8 @@ function drawChordDiagram(ctx, note, chord, position, highlight, x, y, w, h, sta
     const displayFrets = numFretsArg || 3;
     const startingFret = startFretArg || position.baseFret;
 
-
     const stringGap = chartW / (numStrings - 1);
     const fretGap = chartH / displayFrets;
-
 
     // 2. Draw Fretboard Grid
     ctx.strokeStyle = '#999';
@@ -130,20 +129,22 @@ function drawMarker(ctx, x, y, type, size, color = '#AAA') {
  * @param {number} columns - Number of diagrams per row.
  * @param {number} rows - Number of rows.
  */
-function drawSongSheet(ctx, x, y, w, h, chords, columns, rows, activeChord) {
+function drawSongSheet(ctx, x, y, w, h, chords, columns, rows, activeChord,
+        startIndx, maxChordsToShow) {
     // Calculate dimensions for each individual diagram slot
     const cellW = w / columns;
     const cellH = h / rows;
-    
+    const chordsToShow = maxChordsToShow || chords.length;
     // Determine how many diagrams we can actually fit
     const maxChords = columns * rows;
-    const count = Math.min(chords.length, maxChords);
-
-    for (let i = 0; i < count; i++) {
-        const item = chords[i];
+    const count = Math.min(chordsToShow, maxChords);
+    startIndx = startIndx === undefined ? 0 : startIndx;
+    for (let indx = startIndx; indx < startIndx+count; indx++) {
+        const item = chords[indx];
         const highlight = `${item.note}${item.chord}` === activeChord;
         
         // Calculate grid position
+        const i=indx - startIndx; // Relative index for grid placement
         const col = i % columns;
         const row = Math.floor(i / columns);
         

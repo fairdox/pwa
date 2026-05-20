@@ -74,7 +74,8 @@ const ChordGridVariant = {
         this.startTime = Date.now();
         this.lastTapTime=0;
         this.chordsLoaded = false;
-        this.chordsToRender = null
+        this.chordsToRender = null;
+        this.sequentialChords = null;
         this.hold = false;
         this.countDown = true;
         this.loadChords(this.song);
@@ -110,9 +111,12 @@ const ChordGridVariant = {
 
             // 5. Attach the loaded data back to the original song structure
             // This modifies the song object in place so render() can access it
+            let cumulChords = 0;
             song.grid.forEach(row => {
+                row.cumulChords = cumulChords; // Store cumulative count
                 row.forEach(cell => {
                     cell.chords.forEach(chordEntry => {
+                        cumulChords++;
                         const posArray = registry.get(chordEntry.n) || [];
                         // Assign the full array and the first variant as default
                         chordEntry.positions = posArray;
@@ -126,54 +130,65 @@ const ChordGridVariant = {
             console.error("Error loading chords:", err);
         });
     },
-    /**
-     * Generates an ordered list of unique chord objects for rendering.
-     * 
-     * @param {Object} song - The song object containing the grid.
-     * @param {number|null} activeRow - The index of the row to process, or null for all rows.
-     * @returns {Array} Array of objects { note, chord, position }
-     */
-    getChordsToRender(song, activeRow = null) {
-        const renderedChords = [];
-        const seenNames = new Set();
+/**
+ * Generates an ordered list of unique chords AND a sequential timeline array.
+ * 
+ * @param {Object} song - The song object containing the grid.
+ * @param {number|null} activeRow - The index of the row to process, or null for all rows.
+ * @returns {Object} { unique: Array, sequence: Array }
+ */
+getChordsToRender(song, activeRow = null) {
+    const uniqueChords = [];
+    const sequentialChords = [];
+    const seenNames = new Set();
 
-        // 1. Determine which rows to process
-        const rowsToProcess = (activeRow !== null) 
-            ? [song.grid[activeRow]] 
-            : song.grid;
+    // 1. Determine which rows to process
+    const rowsToProcess = (activeRow !== null) 
+        ? [song.grid[activeRow]] 
+        : song.grid;
 
-        // 2. Traverse the grid structure
-        rowsToProcess.forEach(row => {
-            if (!row) return;
+    // 2. Traverse the grid structure
+    rowsToProcess.forEach(row => {
+        if (!row) return;
 
-            row.forEach(cell => {
-                if (!cell.chords) return;
+        row.forEach(cell => {
+            if (!cell.chords) return;
 
-                cell.chords.forEach(chordEntry => {
-                    const chordName = chordEntry.n;
+            cell.chords.forEach(chordEntry => {
+                const chordName = chordEntry.n;
+                if (chordName === "-") return; // Skip empty markers
 
-                    // 3. Only add if we haven't seen this chord name yet
-                    if (!seenNames.has(chordName) && chordName !== "-") {
-                        seenNames.add(chordName);
+                // Parse components and find the specific position variant
+                const { note, suffix } = this.parseChordName(chordName);
+                const variant = chordEntry.v || 0;
+                const position = chordEntry.positions ? chordEntry.positions[variant] : null;
 
-                        // Parse the name for rendering labels
-                        const { note, suffix } = this.parseChordName(chordName);
+                // Create the base item structure
+                const chordItem = {
+                    note: note,
+                    chord: suffix,
+                    name: chordName, // Helpful tracking key for the ribbon
+                    duration: chordEntry.b, // Number of beats this chord lasts
+                    position: position
+                };
 
-                        const variant = chordEntry.v || 0; // Default to first variant
-                        const position = chordEntry.positions ? chordEntry.positions[variant] : null;
-                        // 4. Push the item in the required format
-                        renderedChords.push({
-                            note: note,
-                            chord: suffix,
-                            position: position
-                        });
-                    }
-                });
+                // A. Add to the Sequential Ribbon Array (Keep everything)
+                sequentialChords.push(chordItem);
+
+                // B. Add to the Unique Grid Array (Filter duplicates)
+                if (!seenNames.has(chordName)) {
+                    seenNames.add(chordName);
+                    uniqueChords.push(chordItem);
+                }
             });
         });
+    });
 
-        return renderedChords;
-    },
+    return {
+        unique: uniqueChords,
+        sequence: sequentialChords
+    };
+},
     // Simple parser example (adjust based on your specific naming logic)
     parseChordName(name) {
         // Splits "F#m7" into "F#" and "m7"
@@ -187,10 +202,7 @@ const ChordGridVariant = {
 
     setActiveRow(rowIndex) {
         if (this.activeRow !== rowIndex) {
-            if (this.chordsLoaded) {
-                this.activeRow = rowIndex;
-                this.chordsToRender = this.getChordsToRender(this.song, rowIndex);
-            }
+
         }
     },
     onTap(engine, s, f, name, x, y) {
@@ -211,7 +223,11 @@ const ChordGridVariant = {
 
 render(engine) {
     if (!this.chordsLoaded) return;
-
+    if (!this.chordsToRender ){
+        const data = this.getChordsToRender(this.song);
+        this.chordsToRender = data.unique;
+        this.sequentialChords = data.sequence;
+    }
     const ctx = engine.ctx;
     const w = engine.canvas.width;
     const h = engine.canvas.height;
@@ -254,6 +270,8 @@ render(engine) {
     ctx.clip();
 
     let activeChord = null;
+    let seqChordIndx = -1;
+    let activeChordIndx = 0;
     const maxRowToRender = Math.min(this.song.rows, windowSize);
     
     // vScroll is 0 during countdown, then starts moving
@@ -261,11 +279,16 @@ render(engine) {
         ? 0.0 
         : totalBeatsElapsed / beatsPerRow;
    
-    for (let i = -1; i <= maxRowToRender; i++) {
+    for (let i = 0; i <= maxRowToRender; i++) {
+
         const virtualRow = Math.floor(vScroll) + i;
         const actualRow = ((virtualRow % this.song.rows) + this.song.rows) % this.song.rows;
         const drawY = (i - (vScroll % 1)) * cellH + cellH;
-
+        if (this.lastActiveRow !== actualRow) {
+            this.setActiveRow(actualRow);
+            this.lastActiveRow = actualRow;
+        }
+        seqChordIndx=this.song.grid[actualRow].cumulChords-1;
         for (let c = 0; c < this.song.cols; c++) {
             if (actualRow < 0 || actualRow >= this.song.rows) continue;
             
@@ -276,7 +299,9 @@ render(engine) {
             // Only highlight bars if we have actually started the song
             if (totalBeatsElapsed >= 0 && barGlobalIdx === currentBarIndex) {
                 let accum = 0;
+                activeChordIndx = seqChordIndx+1;
                 for (let j = 0; j < barData.chords.length; j++) {
+                    seqChordIndx++;
                     if (!barData.chords[j]) continue;
                     accum += barData.chords[j].b;
                     if (beatInBar < accum) {
@@ -285,11 +310,8 @@ render(engine) {
                         break;
                     }
                 }
-
-                if (this.lastActiveRow !== actualRow) {
-                    this.setActiveRow(actualRow);
-                    this.lastActiveRow = actualRow;
-                }
+            }else{
+                seqChordIndx += barData.chords.length;
             }
 
             this.drawBar(ctx, c * cellW, drawY, cellW, cellH, barData, activeIdx);
@@ -306,8 +328,14 @@ render(engine) {
 
     // 2. Draw Chord Sheet
     if (this.chordsToRender) {
-        drawSongSheet(ctx, 0, gridHeight, w, sheetHeight, 
-            this.chordsToRender, 3, 3, activeChord);
+        if (this.hold) {
+            drawSongSheet(ctx, 0, gridHeight, w, sheetHeight,
+                          this.chordsToRender, 3, 3, activeChord);
+        } else {
+            drawSongSheet(ctx, 0, gridHeight, w, sheetHeight,
+                          this.sequentialChords, 2, 2, activeChord,
+                          activeChordIndx, 4); // Show 4 chords starting from active
+        }
     }
 
     // 3. --- COUNTDOWN OVERLAY ---

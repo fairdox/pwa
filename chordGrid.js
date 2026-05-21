@@ -3,8 +3,8 @@ const ChordGridVariant = {
     skipHeatMap: true,
     
     song: {
-        bpm: 78,
-        rows: 5,
+        bpm: 70,
+        rows: 4,
         cols: 4,
         grid: [
         [
@@ -14,7 +14,7 @@ const ChordGridVariant = {
             { chords: [{ n: "Cmaj7", b: 2 }, { n: "C#dim", b: 1 }, { n: "A7b9", b: 1 }] }
         ],
         [
-            { chords: [{ n: "Dm7", b: 2 }, { n: "G7", b: 2 }] },
+            { chords: [{ n: "Dm7", b: 2 , v: 1}, { n: "G7", b: 2 }] },
             { chords: [{ n: "C6", b: 2 }, { n: "Fmaj7", b: 2 }] },
             { chords: [{ n: "Dm6", b: 2 }, { n: "E7b9", b: 2}] },
             { chords: [{ n: "Am", b: 2 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 }] }
@@ -31,12 +31,7 @@ const ChordGridVariant = {
             { chords: [{ n: "Dm6", b: 2 }, { n: "E7b9", b: 2}] },
             { chords: [{ n: "Am", b: 2 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 }] }
         ],
-        [
-            { chords: [{ n: "Am", b: 4 }] },
-            { chords: [{ n: "Am", b: 4 }] },
-            { chords: [{ n: "Am", b: 4 }] },
-            { chords: [{ n: "Am", b: 4 }] }
-        ]
+
     ],
     chordDB: {
         "Dm7/C": {
@@ -240,7 +235,7 @@ getChordsToRender(song, activeRow = null) {
         const h = engine.canvas.height;
         const now = Date.now();
 
-        if (x<w/6 && y<h/6){//top left corner
+        if (x>w-(w/6) && y>h-(h/6)){//bottom right  corner
             this.bpmAverage(now);
             return;
         }
@@ -388,7 +383,7 @@ render(engine) {
         }
     }
     
-    this.drawBeatIndicator(ctx, 15, 15, (totalBeatsElapsed % 1 + 1) % 1);
+
     ctx.restore();
 
     // 2. Draw Chord Sheet
@@ -402,7 +397,7 @@ render(engine) {
                           startingChordIndx, chordsInBarCount); 
         }
     }
-
+    this.drawBeatIndicator(ctx, w-18, h-18, (totalBeatsElapsed % 1 + 1) % 1);
     // 3. --- COUNTDOWN OVERLAY ---
     if (totalBeatsElapsed < 0) {
         const count = Math.ceil(Math.abs(totalBeatsElapsed)); // 4, 3, 2, 1
@@ -422,10 +417,10 @@ render(engine) {
     drawBeatIndicator(ctx, x, y, opacity) {
         ctx.save();
         ctx.beginPath();
-        ctx.arc(x, y, 10, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(0, 255, 0, ${opacity})`;
+        ctx.arc(x, y, 14, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0, 255, 255, ${opacity})`;
         ctx.shadowBlur = 15 * opacity;
-        ctx.shadowColor = "#00FF00";
+        ctx.shadowColor = "#00FFFF";
         ctx.fill();
         ctx.restore();
     },

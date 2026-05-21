@@ -250,13 +250,14 @@ getChordsToRender(song, activeRow = null) {
                 if (this.fixedRow>=this.song.grid.length)
                     this.fixedRow=0;
             }
-            this.startTime = Date.now()-4000; // to prevent countdown
+            this.startTime = now-4000; // to prevent countdown
+            this.hold = false;
         }else{
             this.hold = !this.hold;
             if (this.hold) {
-                this.holdStartTime = Date.now();
+                this.holdStartTime = now;
             }else {
-                this.startTime += (Date.now() - this.holdStartTime);
+                this.startTime += (now - this.holdStartTime);
                 // Adjust start time to account for hold duration
             }
             if (dblTap){ // Double tap detected, reset the song
@@ -343,6 +344,11 @@ render(engine) {
             : this.fixedRow;
 
         const drawY = (i - (vScroll % 1)) * cellH + cellH;
+        if (actualRow != this.lastRow ){
+            const data = this.getChordsToRender(this.song, actualRow);
+            this.chordsToRender = data.unique;
+            this.lastRow = actualRow;
+        } 
         
         seqChordIndx = this.song.grid[actualRow].cumulChords - 1;
         for (let c = 0; c < this.song.cols; c++) {
@@ -383,6 +389,10 @@ render(engine) {
         }
     }
     
+    if (activeChordSeqIndx!=this.lastChordIndx){
+        this.lastChordIndx=activeChordSeqIndx;
+        //engine.playChord(this.sequentialChords[activeChordSeqIndx].position);
+    }
 
     ctx.restore();
 

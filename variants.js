@@ -591,7 +591,7 @@ const ChordCompletionVariant = {
         let pos = engine.getFretCoordinates(0,3);
         this.playBtn = KeyboardHelper.addFunctionButton(engine, this, "🔊", pad, pos.y,
                                                              "#484",
-                                                              () => this.playChord(engine)
+                                                              () => this.playFretboard(engine)
                                                               , null,scale*35,scale*35,19);
 
         this.setChord(engine,this.chordIdx);
@@ -627,12 +627,12 @@ const ChordCompletionVariant = {
 
     },
 
-    playChord(engine){
+    playFretboard(engine){
         if (!engine.audioUnlocked) {
             engine.audio.resume(); // Unlocks audio on first click
             engine.audioUnlocked = true;
         }
-        engine.playChord();// plays all notes on history (which are the chord notes in this game) together as a chord sound
+        engine.playFretboard();// plays all notes on history (which are the chord notes in this game) together as a chord sound
     },
 
     setChord(engine,chordIdx){

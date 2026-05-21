@@ -1492,7 +1492,7 @@ class FretboardEngine {
         });
     }
 
-    playChord(strumSpeed = 0.03) {
+    playFretboard(strumSpeed = 0.03) {
         if (!this.history.length) return;
 
         // 1. Group by string index and pick the highest fret/note per string 
@@ -1514,5 +1514,38 @@ class FretboardEngine {
             this.audio.playNote(pitch, delay);
         });
     }
+
+    playChord(chordItem,strumSpeed = 0.03){
+        const activeNotes = [];
+        
+        // Loop through all 6 strings
+        for (let sIdx = 0; sIdx < chordItem.frets.length; sIdx++) {
+            const fretValue = chordItem.frets[sIdx];
+            
+            // Skip muted strings (-1 or null)
+            if (fretValue === -1 || fretValue === null) {
+                continue;
+            }
+            
+            // Calculate absolute fret if a baseFret offset applies
+            // Open strings (0) stay 0, pressed frets adjust relative to baseFret
+            let absoluteFret = fretValue;
+            if (fretValue > 0 && chordItem.baseFret > 1) {
+                absoluteFret = (chordItem.baseFret - 1) + fretValue;
+            }
+            
+            activeNotes.push({
+                sIdx: sIdx,
+                fret: absoluteFret
+            });
+        }
+        
+        activeNotes.forEach((note, index) => {
+            const pitch = StringBasePitches[note.sIdx] + note.fret;
+            const delay = index * strumSpeed;
+            this.audio.playNote(pitch, delay);
+        });
+    }
+
 
 }

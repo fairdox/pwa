@@ -129,7 +129,7 @@ function drawMarker(ctx, x, y, type, size, color = '#AAA') {
  * @param {number} columns - Number of diagrams per row.
  * @param {number} rows - Number of rows.
  */
-function drawSongSheet(ctx, x, y, w, h, chords, columns, rows, activeChord,
+function drawSongSheet(ctx, x, y, w, h, chords, columns, rows, activeChordIndx,
         startIndx, maxChordsToShow) {
     // Calculate dimensions for each individual diagram slot
     const cellW = w / columns;
@@ -141,7 +141,7 @@ function drawSongSheet(ctx, x, y, w, h, chords, columns, rows, activeChord,
     startIndx = startIndx === undefined ? 0 : startIndx;
     for (let indx = startIndx; indx < startIndx+count; indx++) {
         const item = chords[indx];
-        const highlight = `${item.note}${item.chord}` === activeChord;
+        const highlight = indx === activeChordIndx;
         
         // Calculate grid position
         const i=indx - startIndx; // Relative index for grid placement

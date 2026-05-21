@@ -71,16 +71,21 @@ const ChordGridVariant = {
     },
 
     init(engine) {
-        this.startTime = Date.now();
-        this.lastTapTime=0;
         this.chordsLoaded = false;
         this.chordsToRender = null;
         this.sequentialChords = null;
         this.hold = false;
-        this.countDown = true;
+        this.tapTimestamps = [];
+        this.maxTapHistory = 8;
+        this.newBpm=null;
         this.loadChords(this.song);
+        this.initGame(engine);
     },
-
+    initGame(engine) {
+        this.startTime = Date.now();
+        this.lastTapTime=0;
+        this.fixedRow=null;
+    },
     loadChords(song) {
         // 1. Flatten the grid to find every chord entry
         const allChords = song.grid.flat().flatMap(cell => cell.chords);
@@ -200,24 +205,69 @@ getChordsToRender(song, activeRow = null) {
         };
     },
 
-    setActiveRow(rowIndex) {
-        if (this.activeRow !== rowIndex) {
-
+    bpmAverage(now) {
+        // If the gap since the last tap is longer than 2.5 seconds, clear history to start fresh
+        if (this.tapTimestamps.length > 0 &&
+          (now - this.tapTimestamps[this.tapTimestamps.length - 1] > 2500)) {
+            this.tapTimestamps = [];
         }
+
+        this.tapTimestamps.push(now);
+
+        if (this.tapTimestamps.length > this.maxTapHistory) {
+            this.tapTimestamps.shift();
+        }
+
+        // Need at least 2 taps to calculate an interval
+        if (this.tapTimestamps.length < 2) {
+            return null;
+        }
+
+        let totalDelay = 0;
+        const intervalsCount = this.tapTimestamps.length - 1;
+
+        for (let i = 0; i < intervalsCount; i++) {
+            totalDelay += (this.tapTimestamps[i + 1] - this.tapTimestamps[i]);
+        }
+
+        const averageDelayMS = totalDelay / intervalsCount;
+        this.newBpm = Math.max(30, Math.min(150, Math.round(60000 / averageDelayMS)));
+
     },
+
     onTap(engine, s, f, name, x, y) {
-        const delay=Date.now() - this.lastTapTime;
-        if (delay<300){ // Double tap detected, reset the song
-            setTimeout(() => this.init(), 100);
+        const w = engine.canvas.width;
+        const h = engine.canvas.height;
+        const now = Date.now();
+
+        if (x<w/6 && y<h/6){//top left corner
+            this.bpmAverage(now);
             return;
         }
-        this.lastTapTime=Date.now();
-        this.hold = !this.hold;
-        if (this.hold) {
-            this.holdStartTime = Date.now();
-        }else {
-            this.startTime += (Date.now() - this.holdStartTime);
-             // Adjust start time to account for hold duration
+        const delay=now- this.lastTapTime;
+        const dblTap = delay<300;
+        this.lastTapTime=now;
+        if (x<w/4 && y<h/4){//top left corner
+            if (this.fixedRow===null) 
+                this.fixedRow=0;
+            else {
+                this.fixedRow++;
+                if (this.fixedRow>=this.song.grid.length)
+                    this.fixedRow=0;
+            }
+            this.startTime = Date.now()-4000; // to prevent countdown
+        }else{
+            this.hold = !this.hold;
+            if (this.hold) {
+                this.holdStartTime = Date.now();
+            }else {
+                this.startTime += (Date.now() - this.holdStartTime);
+                // Adjust start time to account for hold duration
+            }
+            if (dblTap){ // Double tap detected, reset the song
+                setTimeout(() => this.initGame(engine), 100);
+                return;
+            }
         }
     },
 
@@ -231,22 +281,25 @@ render(engine) {
     const ctx = engine.ctx;
     const w = engine.canvas.width;
     const h = engine.canvas.height;
-    const msPerBeat = 60000 / this.song.bpm;
+    const msPerBeat = 60000 / (this.newBpm ? this.newBpm : this.song.bpm);
     
     // --- COUNT-IN CONFIGURATION ---
     const countInBeats = 4;
     const countInMS = countInBeats * msPerBeat;
     
     let now = this.hold ? this.holdStartTime : Date.now();
-    
+    const beatsPerRow = this.song.cols * 4;
     // The "songTime" is 0 exactly when the countdown ends.
     // Before that, it is negative.
     const songElapsed = now - (this.startTime + countInMS);
-    const totalBeatsElapsed = songElapsed / msPerBeat;
+    let totalBeatsElapsed = songElapsed / msPerBeat;
 
+    // --- FIX: Wrap beats if we are restricting playback to a single row ---
+    if (this.fixedRow !== null && totalBeatsElapsed >= 0) {
+        totalBeatsElapsed = totalBeatsElapsed % beatsPerRow;
+    }
     const gridHeight = h * 0.3;
     const sheetHeight = h - gridHeight;
-    const beatsPerRow = this.song.cols * 4;
 
     // --- GRID CALCULATIONS ---
     // We clamp currentBarIndex to 0 during countdown so the grid shows the start
@@ -271,52 +324,64 @@ render(engine) {
 
     let activeChord = null;
     let seqChordIndx = -1;
-    let activeChordIndx = 0;
-    const maxRowToRender = Math.min(this.song.rows, windowSize);
-    
+    let activeChordSeqIndx = 0;
+    let chordsInBarCount = 0;
+    let startingChordIndx = 0;
+    let maxRowToRender = Math.min(this.song.rows, windowSize);
     // vScroll is 0 during countdown, then starts moving
-    const vScroll = (this.song.rows <= windowSize || totalBeatsElapsed < 0) 
+    let vScroll = (this.song.rows <= windowSize || totalBeatsElapsed < 0) 
         ? 0.0 
         : totalBeatsElapsed / beatsPerRow;
-   
-    for (let i = 0; i <= maxRowToRender; i++) {
 
+    let startingRow = 0;
+    if (this.fixedRow !== null) {
+        maxRowToRender = 2;
+        vScroll = 0.0;
+    }
+   
+    for (let i = startingRow; i <= maxRowToRender; i++) {
         const virtualRow = Math.floor(vScroll) + i;
-        const actualRow = ((virtualRow % this.song.rows) + this.song.rows) % this.song.rows;
+        
+        // When fixedRow is active, actualRow always points to it, ignoring layout shifting
+        const actualRow = this.fixedRow === null 
+            ? ((virtualRow % this.song.rows) + this.song.rows) % this.song.rows
+            : this.fixedRow;
+
         const drawY = (i - (vScroll % 1)) * cellH + cellH;
-        if (this.lastActiveRow !== actualRow) {
-            this.setActiveRow(actualRow);
-            this.lastActiveRow = actualRow;
-        }
-        seqChordIndx=this.song.grid[actualRow].cumulChords-1;
+        
+        seqChordIndx = this.song.grid[actualRow].cumulChords - 1;
         for (let c = 0; c < this.song.cols; c++) {
             if (actualRow < 0 || actualRow >= this.song.rows) continue;
             
             const barData = this.song.grid[actualRow][c];
-            const barGlobalIdx = (actualRow * this.song.cols) + c;
+            
+            // --- FIX HERE: Use trackingRow (or virtualRow) for the timeline index mapping ---
+            const targetRow = this.fixedRow === null ? actualRow : (virtualRow % this.song.rows);
+            const barGlobalIdx = (targetRow * this.song.cols) + c;
             
             let activeIdx = null;
             // Only highlight bars if we have actually started the song
             if (totalBeatsElapsed >= 0 && barGlobalIdx === currentBarIndex) {
                 let accum = 0;
-                activeChordIndx = seqChordIndx+1;
+                chordsInBarCount = barData.chords.length;
+                startingChordIndx = seqChordIndx + 1;
                 for (let j = 0; j < barData.chords.length; j++) {
                     seqChordIndx++;
                     if (!barData.chords[j]) continue;
                     accum += barData.chords[j].b;
                     if (beatInBar < accum) {
                         activeIdx = j;
-                        activeChord = barData.chords[j].n;
+                        activeChordSeqIndx = seqChordIndx;
                         break;
                     }
                 }
-            }else{
+            } else {
                 seqChordIndx += barData.chords.length;
             }
 
             this.drawBar(ctx, c * cellW, drawY, cellW, cellH, barData, activeIdx);
             
-            // Row Labels
+            // Row Labels (Keep actualRow if you want to see the frozen loop number)
             ctx.fillStyle = "rgba(120, 120, 255, 0.7)";
             ctx.font = "35px monospace";
             ctx.fillText(`${actualRow + 1}`, 15, drawY + 35);
@@ -330,11 +395,11 @@ render(engine) {
     if (this.chordsToRender) {
         if (this.hold) {
             drawSongSheet(ctx, 0, gridHeight, w, sheetHeight,
-                          this.chordsToRender, 3, 3, activeChord);
+                          this.chordsToRender, 3, 3, null);
         } else {
             drawSongSheet(ctx, 0, gridHeight, w, sheetHeight,
-                          this.sequentialChords, 2, 2, activeChord,
-                          activeChordIndx, 4); // Show 4 chords starting from active
+                          this.sequentialChords, 2, 2, activeChordSeqIndx,
+                          startingChordIndx, chordsInBarCount); 
         }
     }
 

@@ -15,7 +15,7 @@ const ChordGridVariant = {
         ],
         [
             { chords: [{ n: "Dm7", b: 2 , v: 1}, { n: "G7", b: 2 }] },
-            { chords: [{ n: "C6", b: 2 }, { n: "Fmaj7", b: 2 }] },
+            { chords: [{ n: "C6", b: 2 }, { n: "Fmaj7", b: 2, v: 1 }] },
             { chords: [{ n: "Dm6", b: 2 }, { n: "E7b9", b: 2}] },
             { chords: [{ n: "Am", b: 2 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 }] }
         ],
@@ -27,7 +27,7 @@ const ChordGridVariant = {
         ],
         [
             { chords: [{ n: "Dm", b: 1 }, { n: "Dm7/C", b: 1 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 } ] },
-            { chords: [{ n: "Am", b: 2 }, { n: "Am7/G", b: 1 } , { n: "Fmaj7", b: 1 }] },
+            { chords: [{ n: "Am", b: 2 }, { n: "Am7/G", b: 1 } , { n: "Fmaj7", b: 1, v: 1 }] },
             { chords: [{ n: "Dm6", b: 2 }, { n: "E7b9", b: 2}] },
             { chords: [{ n: "Am", b: 2 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 }] }
         ],
@@ -80,6 +80,8 @@ const ChordGridVariant = {
         this.startTime = Date.now();
         this.lastTapTime=0;
         this.fixedRow=null;
+        if (!this.hold)
+            setTimeout(() => {engine.requestWakeLock();}, 100);// prevent screen saver
     },
     loadChords(song) {
         // 1. Flatten the grid to find every chord entry
@@ -200,7 +202,7 @@ getChordsToRender(song, activeRow = null) {
         };
     },
 
-    bpmAverage(now) {
+    bpmAverage(engine,now,x,y) {
         // If the gap since the last tap is longer than 2.5 seconds, clear history to start fresh
         if (this.tapTimestamps.length > 0 &&
           (now - this.tapTimestamps[this.tapTimestamps.length - 1] > 2500)) {
@@ -227,16 +229,21 @@ getChordsToRender(song, activeRow = null) {
 
         const averageDelayMS = totalDelay / intervalsCount;
         this.newBpm = Math.max(30, Math.min(150, Math.round(60000 / averageDelayMS)));
+        engine.addLabel(`${this.newBpm}`,
+                         { duration: .75, size:25, x:x, y:y,
+                          speed:210, acceleration : 90, direction: -15
+                        });
 
     },
 
     onTap(engine, s, f, name, x, y) {
         const w = engine.canvas.width;
         const h = engine.canvas.height;
+        const coords = {x: w-40, y: h-40}; // bottom right corner for BPM tap
         const now = Date.now();
 
-        if (x>w-(w/6) && y>h-(h/6)){//bottom right  corner
-            this.bpmAverage(now);
+        if (x>coords.x && y>coords.y){//bottom right  corner
+            this.bpmAverage(engine,now,coords.x,coords.y);
             return;
         }
         const delay=now- this.lastTapTime;
@@ -256,8 +263,10 @@ getChordsToRender(song, activeRow = null) {
             this.hold = !this.hold;
             if (this.hold) {
                 this.holdStartTime = now;
+                setTimeout(() => {engine.releaseWakeLock();}, 100);// allow screen saver
             }else {
                 this.startTime += (now - this.holdStartTime);
+                setTimeout(() => {engine.requestWakeLock();}, 100);
                 // Adjust start time to account for hold duration
             }
             if (dblTap){ // Double tap detected, reset the song

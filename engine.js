@@ -111,6 +111,7 @@ class FretboardEngine {
         this.audio = new AudioController();
         this.HighlightFrets=null;
         this._currentChordVariant=null; // null: none, 0: v1, 1: v2, etc
+        this.wakeLock = null; // To hold the wake lock sentinel
 
         // 3D effect needs https connection
         if (window.DeviceOrientationEvent) {
@@ -1547,5 +1548,25 @@ class FretboardEngine {
         });
     }
 
-
+    async  releaseWakeLock() {
+        if (this.wakeLock !== null) {
+            try {
+                await this.wakeLock.release();
+                this.wakeLock = null;
+                console.log('Screen Wake Lock has been released.');
+            } catch (err) {
+                console.error(`${err.name}, ${err.message}`);
+            }
+        }
+    }
+    
+    // Function to request the wake lock
+    async  requestWakeLock() {
+        try {
+            this.wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Screen Wake Lock is active.');
+        } catch (err) {
+            console.error(`${err.name}, ${err.message}`);
+        }
+    }
 }

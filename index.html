@@ -250,6 +250,7 @@ function toggleMenuPage(show) {
         document.getElementById('historyToggle').checked = game.showHistory;
         document.getElementById('permission3D').checked = game.show3D;
     } 
+    setTimeout(() => {game.releaseWakeLock();}, 100);
 }
 
 async function requestOrientation(show) {
@@ -361,6 +362,12 @@ startButton.addEventListener('click', async () => {
     localStorage.getItem('lastGame') ? switchGame(localStorage.getItem('lastGame')) : switchGame('keyboard');
     game.draw();
 
+});
+
+document.addEventListener('visibilitychange', async () => {
+  if (game.wakeLock !== null && document.visibilityState === 'visible') {
+    await game.requestWakeLock();
+  }
 });
 
 readyApp();

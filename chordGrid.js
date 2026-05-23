@@ -258,7 +258,7 @@ getChordsToRender(song, activeRow = null) {
                     this.fixedRow=0;
             }
             this.startTime = now-4000; // to prevent countdown
-            this.hold = false;
+            this.holdStartTime = this.startTime;
         }else{
             this.hold = !this.hold;
             if (this.hold) {
@@ -418,7 +418,7 @@ render(engine) {
     }
     this.drawBeatIndicator(ctx, w-18, h-18, (totalBeatsElapsed % 1 + 1) % 1);
     // 3. --- COUNTDOWN OVERLAY ---
-    if (totalBeatsElapsed < 0) {
+    if (totalBeatsElapsed < 0 && !this.hold) {
         const count = Math.ceil(Math.abs(totalBeatsElapsed)); // 4, 3, 2, 1
         const progressInBeat = 1 - (Math.abs(totalBeatsElapsed) % 1);
         

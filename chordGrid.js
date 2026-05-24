@@ -73,6 +73,10 @@ const ChordGridVariant = {
         this.tapTimestamps = [];
         this.maxTapHistory = 8;
         this.newBpm=null;
+        const h = engine.canvas.height;
+        this.gridHeight = h * 0.3;
+        this.sheetHeight = h - this.gridHeight;
+
         this.loadChords(this.song);
         this.initGame(engine);
     },
@@ -236,6 +240,43 @@ getChordsToRender(song, activeRow = null) {
 
     },
 
+    getClickedRectangleTopPart(engine, cx, cy) {
+        const x=0; 
+        const y=this.gridHeight;
+        const w=engine.canvas.width;
+        const h=this.sheetHeight;
+        const columns=3;
+        const rows=3;
+
+        // Check if the click is outside the bounding box of the entire canvas area
+        if (cx < x || cx > x + w || cy < y || cy > y + h) {
+            return null;
+        }
+
+        // Calculate the dimensions of a single rectangle
+        const rectW = w / columns;
+        const rectH = h / rows;
+
+        // Determine the column and row index (0-based) of the click
+        const colIndex = Math.floor((cx - x) / rectW);
+        const rowIndex = Math.floor((cy - y) / rectH);
+
+        // Handle edge cases where the click is exactly on the outer boundaries
+        const safeCol = Math.min(colIndex, columns - 1);
+        const safeRow = Math.min(rowIndex, rows - 1);
+
+        // Calculate the local Y coordinate within the target rectangle
+        const localY = (cy - y) - (safeRow * rectH);
+
+        // Check if the click is within the top 1/8th of this rectangle
+        if (localY <= rectH / 8) {
+            // Calculate the sequential index (row-by-row, left-to-right)
+            return (safeRow * columns) + safeCol;
+        }
+
+        return null;
+    },
+
     onTap(engine, s, f, name, x, y) {
         const w = engine.canvas.width;
         const h = engine.canvas.height;
@@ -260,18 +301,23 @@ getChordsToRender(song, activeRow = null) {
             this.startTime = now-4000; // to prevent countdown
             this.holdStartTime = this.startTime;
         }else{
-            this.hold = !this.hold;
-            if (this.hold) {
-                this.holdStartTime = now;
-                setTimeout(() => {engine.releaseWakeLock();}, 100);// allow screen saver
-            }else {
-                this.startTime += (now - this.holdStartTime);
-                setTimeout(() => {engine.requestWakeLock();}, 100);
-                // Adjust start time to account for hold duration
-            }
-            if (dblTap){ // Double tap detected, reset the song
-                setTimeout(() => this.initGame(engine), 100);
-                return;
+            const rectIndex = this.getClickedRectangleTopPart(engine,x, y);
+            if (rectIndex !== null && this.hold) {
+                engine.playChord(this.sequentialChords[rectIndex].position);
+            }else{
+                this.hold = !this.hold;
+                if (this.hold) {
+                    this.holdStartTime = now;
+                    setTimeout(() => {engine.releaseWakeLock();}, 100);// allow screen saver
+                }else {
+                    this.startTime += (now - this.holdStartTime);
+                    setTimeout(() => {engine.requestWakeLock();}, 100);
+                    // Adjust start time to account for hold duration
+                }
+                if (dblTap){ // Double tap detected, reset the song
+                    setTimeout(() => this.initGame(engine), 100);
+                    return;
+                }
             }
         }
     },
@@ -303,8 +349,6 @@ render(engine) {
     if (this.fixedRow !== null && totalBeatsElapsed >= 0) {
         totalBeatsElapsed = totalBeatsElapsed % beatsPerRow;
     }
-    const gridHeight = h * 0.3;
-    const sheetHeight = h - gridHeight;
 
     // --- GRID CALCULATIONS ---
     // We clamp currentBarIndex to 0 during countdown so the grid shows the start
@@ -318,13 +362,13 @@ render(engine) {
     // Layout
     const windowSize = 2; 
     const cellW = w / this.song.cols;
-    const cellH = gridHeight / windowSize; 
+    const cellH = this.gridHeight / windowSize; 
 
     ctx.save();
     
     // 1. Draw Grid (Sliding logic)
     ctx.beginPath();
-    ctx.rect(0, 0, w, gridHeight);
+    ctx.rect(0, 0, w, this.gridHeight);
     ctx.clip();
 
     let activeChord = null;
@@ -408,10 +452,10 @@ render(engine) {
     // 2. Draw Chord Sheet
     if (this.chordsToRender) {
         if (this.hold) {
-            drawSongSheet(ctx, 0, gridHeight, w, sheetHeight,
+            drawSongSheet(ctx, 0, this.gridHeight, w, this.sheetHeight,
                           this.chordsToRender, 3, 3, null);
         } else {
-            drawSongSheet(ctx, 0, gridHeight, w, sheetHeight,
+            drawSongSheet(ctx, 0, this.gridHeight, w, this.sheetHeight,
                           this.sequentialChords, 2, 2, activeChordSeqIndx,
                           startingChordIndx, chordsInBarCount); 
         }

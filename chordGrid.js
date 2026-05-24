@@ -303,7 +303,7 @@ getChordsToRender(song, activeRow = null) {
         }else{
             const rectIndex = this.getClickedRectangleTopPart(engine,x, y);
             if (rectIndex !== null && this.hold) {
-                engine.playChord(this.sequentialChords[rectIndex].position);
+                engine.playChord(this.chordsToRender[rectIndex].position);
             }else{
                 this.hold = !this.hold;
                 if (this.hold) {

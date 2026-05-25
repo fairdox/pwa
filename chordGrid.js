@@ -303,8 +303,12 @@ getChordsToRender(song, activeRow = null) {
         }else{
             const rectIndex = this.getClickedRectangleTopPart(engine,x, y);
             if (rectIndex !== null && this.hold) {
+            if (!engine.audioUnlocked) {
+                engine.audio.resume(); // Unlocks audio on first click
+                engine.audioUnlocked = true;
+            }
                 engine.playChord(this.chordsToRender[rectIndex].position);
-            }else{
+            }else if (y<h/3){ // top third for hold toggle
                 this.hold = !this.hold;
                 if (this.hold) {
                     this.holdStartTime = now;

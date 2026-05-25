@@ -240,7 +240,7 @@ getChordsToRender(song, activeRow = null) {
 
     },
 
-    getClickedRectangleTopPart(engine, cx, cy) {
+    getClickedRectangleTopPart(engine, cx, cy, topSectionRatio = 1.0) {
         const x=0; 
         const y=this.gridHeight;
         const w=engine.canvas.width;
@@ -268,8 +268,9 @@ getChordsToRender(song, activeRow = null) {
         // Calculate the local Y coordinate within the target rectangle
         const localY = (cy - y) - (safeRow * rectH);
 
-        // Check if the click is within the top 1/8th of this rectangle
-        if (localY <= rectH / 8) {
+        // Check if the click is within the top section of this rectangle
+        // If topSectionRatio is 1.0, the entire rectangle is active. If it's 0.5, only the top half is active, etc.
+        if (localY <= rectH * topSectionRatio) {
             // Calculate the sequential index (row-by-row, left-to-right)
             return (safeRow * columns) + safeCol;
         }
@@ -308,7 +309,7 @@ getChordsToRender(song, activeRow = null) {
                 engine.audioUnlocked = true;
             }
                 engine.playChord(this.chordsToRender[rectIndex].position);
-            }else if (y<h/3){ // top third for hold toggle
+            }else if (y<h/4){ // top fourth for hold toggle
                 this.hold = !this.hold;
                 if (this.hold) {
                     this.holdStartTime = now;

@@ -9,11 +9,8 @@
  * @param {number} y - Top coordinate.
  * @param {number} w - Total width.
  * @param {number} h - Total height.
- * @param {number} [startFretArg] - Explicit starting fret.
- * @param {number} [numFretsArg] - Explicit number of frets to display.
  */
-function drawChordDiagram(ctx, note, chord, position, highlight, x, y, w, h,
-     startFretArg, numFretsArg) {
+function drawChordDiagram(ctx, note, chord, position, highlight, x, y, w, h) {
      // Layout Constants
     const topMargin = h * 0.2;
     const sideMargin = w * 0.12;
@@ -28,8 +25,8 @@ function drawChordDiagram(ctx, note, chord, position, highlight, x, y, w, h,
 
     if (!position) return;
     const numStrings = position.frets.length;
-    const displayFrets = numFretsArg || 3;
-    const startingFret = startFretArg || position.baseFret;
+    const displayFrets = position.numFrets || 3;
+    const startingFret = position.baseFret || 1;
 
     const stringGap = chartW / (numStrings - 1);
     const fretGap = chartH / displayFrets;
@@ -170,9 +167,7 @@ function drawSongSheet(ctx, x, y, w, h, chords, columns, rows, activeChordIndx,
             drawX,
             drawY,
             drawW,
-            drawH,
-            item.startFret, // Optional: starting fret override
-            item.numFrets   // Optional: number of frets override
+            drawH
         );
     }
 }

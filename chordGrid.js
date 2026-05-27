@@ -1,70 +1,6 @@
 const ChordGridVariant = {
     label: "Chord Grid",
     skipHeatMap: true,
-    
-    song: {
-        bpm: 70,
-        rows: 4,
-        cols: 4,
-        grid: [
-        [
-            { chords: [{ n: "Am", b: 2 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 }] },
-            { chords: [{ n: "Am", b: 2 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 }] },
-            { chords: [{ n: "Am", b: 2 }, { n: "Dm7", b: 1, v: 1 }, { n: "G7", b: 1 }] },
-            { chords: [{ n: "Cmaj7", b: 2 }, { n: "C#dim", b: 1 }, { n: "A7b9", b: 1 }] }
-        ],
-        [
-            { chords: [{ n: "Dm7", b: 2 , v: 1}, { n: "G7", b: 2 }] },
-            { chords: [{ n: "C6", b: 2 }, { n: "Fmaj7", b: 2, v: 1 }] },
-            { chords: [{ n: "Dm6", b: 2 }, { n: "E7b9", b: 2}] },
-            { chords: [{ n: "Am", b: 2 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 }] }
-        ],
-        [
-            { chords: [{ n: "Am", b: 2 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 }] },
-            { chords: [{ n: "Am", b: 2 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 }] },
-            { chords: [{ n: "Em7b5", b: 2 }, { n: "A7b9", b: 2}] },
-            { chords: [{ n: "Dm", b: 4 }]}
-        ],
-        [
-            { chords: [{ n: "Dm", b: 1 }, { n: "Dm7/C", b: 1 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 } ] },
-            { chords: [{ n: "Am", b: 2 }, { n: "Am7/G", b: 1 } , { n: "Fmaj7", b: 1, v: 1 }] },
-            { chords: [{ n: "Dm6", b: 2 }, { n: "E7b9", b: 2}] },
-            { chords: [{ n: "Am", b: 2 }, { n: "Dm6", b: 1 }, { n: "E7b9", b: 1 }] }
-        ],
-
-    ],
-    chordDB: {
-        "Dm7/C": {
-            "frets": [-1, 3, 0, 2, 1, 1], // Corrected example frets for Dm7/C
-            "barres": [1], 
-            "baseFret": 1,
-            "fingers": [0, 3, 0, 2, 3, 1] // Optional but helpful for future-proofing
-        },
-        "Dm6": {
-            "frets": [-1, 2, 0, 2, 3, 1],
-            "barres": [],
-            "baseFret": 1
-        },
-        "Cmaj7": {
-            "frets": [-1, 3, 2, 0, 0, 0],
-            "barres": [],
-            "baseFret": 1
-        },
-        "Am7/G": {
-            "frets": [3, 0, 2, 2, 1, 0],
-            "barres": [],
-            "baseFret": 1
-        },
-        "C#dim": {
-            "frets": [-1, 1, 2, 0, 2, 0],
-            "barres": [],
-            "baseFret": 1
-        },
-
-
-    }
-    },
-
     init(engine) {
         this.chordsLoaded = false;
         this.chordsToRender = null;
@@ -77,7 +13,7 @@ const ChordGridVariant = {
         this.gridHeight = h * 0.3;
         this.sheetHeight = h - this.gridHeight;
 
-        this.loadChords(this.song);
+        this.loadSong("Je pardonne");
         this.initGame(engine);
     },
     initGame(engine) {
@@ -87,7 +23,19 @@ const ChordGridVariant = {
         if (!this.hold)
             setTimeout(() => {engine.requestWakeLock();}, 100);// prevent screen saver
     },
+    loadSong(songName="Manha de Carnaval") {
+        this.label=`Loading "${songName}"...`;
+        return dbService.getSongByName(songName).then(song => {
+            if (!song) {
+                this.label=`"${songName}" not found.`;
+            }else{
+                this.song = song;
+                this.loadChords(song);
+            }
+        });
+    },
     loadChords(song) {
+        this.label = `Loading chords...`;
         // 1. Flatten the grid to find every chord entry
         const allChords = song.grid.flat().flatMap(cell => cell.chords);
         
@@ -132,7 +80,9 @@ const ChordGridVariant = {
 
             // 6. Signal that data is ready
             this.chordsLoaded = true;
+            this.label = `${song.name}`;
         }).catch(err => {
+            this.label = `Error loading chords "${song.name}"`;
             console.error("Error loading chords:", err);
         });
     },

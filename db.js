@@ -143,6 +143,45 @@ const dbService = {
   },
 
   // --- SONG OPERATIONS ---
+/**
+ * Fetches a song from Supabase by its name.
+ * @param {object} supabase - The initialized Supabase client instance.
+ * @param {string} songName - The name of the song to search for.
+ * @returns {Promise<object|null>} The song object, or null if not found.
+ */
+async getSongByName(songName) {
+  try {
+    const { data, error } = await _supabase
+      .from('songs')
+      .select('id, name, bpm, rows, cols, grid, chord_db')
+      .eq('name', songName)
+      .single(); // Use .single() since song names are typically unique in a library
+
+    if (error) {
+      // Handle the case where the song simply doesn't exist gracefully
+      if (error.code === 'PGRST116') {
+        console.warn(`Song "${songName}" not found.`);
+        return null;
+      }
+      throw error;
+    }
+    const song = {
+        id: data.id,
+        name: data.name,
+        bpm: data.bpm,
+        rows: data.rows,
+        cols: data.cols,
+        grid: data.grid,
+        chordDB: data.chord_db || {}
+      };
+
+    return song;
+  } catch (error) {
+    console.error('Error fetching song:', error.message);
+    throw error;
+  }
+},
+
   async saveSong(title, chordIds) {
     const user = await this.getUser();
     const { data, error } = await _supabase

@@ -13,7 +13,7 @@ const ChordGridVariant = {
         this.gridHeight = h * 0.3;
         this.sheetHeight = h - this.gridHeight;
 
-        this.loadSong("Je pardonne");
+        this.loadSong("Beggin");
         this.initGame(engine);
     },
     initGame(engine) {
@@ -363,6 +363,7 @@ render(engine) {
             if (actualRow < 0 || actualRow >= this.song.rows) continue;
             
             const barData = this.song.grid[actualRow][c];
+            if (!barData) continue;
             
             // --- FIX HERE: Use trackingRow (or virtualRow) for the timeline index mapping ---
             const targetRow = this.fixedRow === null ? actualRow : (virtualRow % this.song.rows);
@@ -443,84 +444,104 @@ render(engine) {
         ctx.restore();
     },
 
-drawBar(ctx, x, y, w, h, bar, activeIdx) {
-    // 1. Draw solid black background for the whole bar
-    ctx.fillStyle = "#000";
-    ctx.fillRect(x, y, w, h);
+    drawBar(ctx, x, y, w, h, bar, activeIdx) {
+        // 1. Draw solid black background for the whole bar
+        ctx.fillStyle = "#000";
+        ctx.fillRect(x, y, w, h);
 
-    bar.chords.forEach((chord, i) => {
-        const geo = this.getChordGeometry(x, y, w, h, bar.chords, i);
-        if (!geo || !geo.polygon || geo.polygon.length < 3) return;
-        // 2. Draw the Quadrant Shape
-        ctx.beginPath();
-        ctx.moveTo(geo.polygon[0].x, geo.polygon[0].y);
-        for (let p = 1; p < geo.polygon.length; p++) {
-            ctx.lineTo(geo.polygon[p].x, geo.polygon[p].y);
+        bar.chords.forEach((chord, i) => {
+            const geo = this.getChordGeometry(x, y, w, h, bar.chords, i);
+            if (!geo || !geo.polygon || geo.polygon.length < 3) return;
+
+            // 2. Draw the Sector Shape
+            ctx.beginPath();
+            ctx.moveTo(geo.polygon[0].x, geo.polygon[0].y);
+            for (let p = 1; p < geo.polygon.length; p++) {
+                ctx.lineTo(geo.polygon[p].x, geo.polygon[p].y);
+            }
+            ctx.closePath();
+
+            // 4. Draw the borders (This creates the internal lines)
+            ctx.strokeStyle = "#444"; 
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            if (chord.n === "r") return; // Skip rests
+            // 3. Fill only if active (using green highlight)
+            if (i === activeIdx) {
+                ctx.fillStyle = "rgba(0, 255, 0, 0.3)";
+                ctx.fill();
+            }
+
+
+            // Draw Chord Name
+            ctx.fillStyle = "#00FF00";
+            ctx.font = "bold 18px monospace";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(chord.n, geo.text.x, geo.text.y);
+        });
+
+        // 6. Draw a clean outer border for the square bar
+        ctx.strokeStyle = "#666";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, w, h);
+    },
+
+    getChordGeometry(x, y, w, h, barChords, index) {
+        const midX = x + w / 2;
+        const midY = y + h / 2;
+        
+        // Fit the pie circle neatly inside the bounding box
+        const radius = Math.min(w, h) / 2 * 0.95; 
+
+        // --- BASE ANGLE FIX ---
+        // Forces the first sector to start visually at 1:30 (Up and Right)
+        const baseAngle = -Math.PI / 2 - Math.PI / 4;
+        
+        // Calculate this chord's starting position in beats
+        let startBeats = 0;
+        for (let i = 0; i < index; i++) {
+            startBeats += barChords[i].b;
         }
-        ctx.closePath();
+        const durationBeats = barChords[index].b;
 
-        // 3. Fill only if active (using green highlight)
-        if (i === activeIdx) {
-            ctx.fillStyle = "rgba(0, 255, 0, 0.3)";
-            ctx.fill();
+        // Convert beats to radians (4 beats = a full 2*PI circle)
+        const startAngle = baseAngle + (startBeats / 4) * (Math.PI * 2);
+        const endAngle = startAngle + (durationBeats / 4) * (Math.PI * 2);
+
+        // --- POLYGON PATH CONSTRUCTION ---
+        const poly = [{ x: midX, y: midY }];
+
+        // Approximate the curved edge using straight segments (every 5 degrees)
+        const step = (5 * Math.PI) / 180; 
+        for (let a = startAngle; a < endAngle; a += step) {
+            poly.push({
+                x: midX + Math.cos(a) * radius,
+                y: midY + Math.sin(a) * radius
+            });
         }
+        
+        // Seal any rounding gaps with the exact end coordinates
+        poly.push({
+            x: midX + Math.cos(endAngle) * radius,
+            y: midY + Math.sin(endAngle) * radius
+        });
 
-        // 4. Draw the borders (This creates the diagonals/subdivisions)
-        ctx.strokeStyle = "#444"; // Dark gray for the internal lines
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        // --- GEOMETRIC TEXT POSITIONING ---
+        const halfSliceAngle = (endAngle - startAngle) / 2;
+        const centerSliceAngle = startAngle + halfSliceAngle;
+        
+        // Center of gravity scaling factor for a perfect sector placement
+        const factor = halfSliceAngle === 0 ? 0.6 : (2 / 3) * (Math.sin(halfSliceAngle) / halfSliceAngle);
+        const textRadius = radius * factor * 0.85; 
 
-        // Draw Chord Name
-        ctx.fillStyle = "#00FF00";
-        ctx.font = "bold 18px monospace";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(chord.n, geo.text.x, geo.text.y);
-    });
+        const textX = midX + Math.cos(centerSliceAngle) * textRadius;
+        const textY = midY + Math.sin(centerSliceAngle) * textRadius;
 
-    // 6. Draw a clean outer border for the bar
-    ctx.strokeStyle = "#666";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, w, h);
-},
-
-getChordGeometry(x, y, w, h, barChords, index) {
-    const tl = { x, y }, tr = { x: x + w, y };
-    const br = { x: x + w, y: y + h }, bl = { x, y: y + h };
-    const mid = { x: x + w / 2, y: y + h / 2 };
-    
-    const duration = barChords[index].b;
-    let poly = [];
-
-    if (barChords.length === 1) {
-        poly = [tl, tr, br, bl];
-    } 
-    else if (barChords.length === 2) {
-        // Your specific diagonal (BL to TR)
-        poly = (index === 0) ? [tl, tr, bl] : [tr, br, bl];
-    } 
-    else {
-        // Hardcoded for 3 and 4 chords
-        // Position 0: Top/Left, 1: Right, 2: Bottom, 3: Left
-        if (index === 0) {
-            poly = (duration === 2) ? [bl, tl, tr, mid] : [tl, tr, mid];
-        } 
-        else if (index === 1) {
-            // If the first chord took 2 beats, this one starts at the Right
-            poly = [tr, br, mid];
-        } 
-        else if (index === 2) {
-            poly = [br, bl, mid];
-        } 
-        else if (index === 3) {
-            poly = [bl, tl, mid];
-        }
+        return { 
+            polygon: poly, 
+            text: { x: textX, y: textY } 
+        };
     }
-
-    // Centroid for text alignment
-    const cX = poly.reduce((sum, p) => sum + p.x, 0) / poly.length;
-    const cY = poly.reduce((sum, p) => sum + p.y, 0) / poly.length;
-
-    return { polygon: poly, text: { x: cX, y: cY } };
 }
-};

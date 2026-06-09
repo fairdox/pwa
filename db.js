@@ -97,7 +97,7 @@ const dbService = {
       const keyMap = { "Db": "Csharp",  "Gb": "Fsharp", 
                         "A#": "Bb", "C#": "Csharp", "D#": "Eb", "F#": "Fsharp", "G#": "Ab", 
         };
-      const chordMap = {  "min": "minor", "m": "minor", "maj": "major" };
+      const chordMap = {  "min": "minor", "m": "minor", "maj": "major", "": "major" };
       const normalizedKey = keyMap[key] || key;
       const normalizedSuffix = chordMap[suffix] || suffix;
 

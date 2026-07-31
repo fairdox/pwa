@@ -82,8 +82,8 @@ const ExtremeAccidentalVariant = {
     },
 
     onTap(engine, s, f, name, x, y) {
-        const btn = KeyboardHelper.checkClick(this.buttons, x, y);
-        if (!btn) return;
+        const {btn, processed} = KeyboardHelper.checkClick(this.buttons, x, y);
+        if (btn && processed) return;
 
         const isCorrect = btn.note === this.targetNote;
         const tappedIdx = NOTES.indexOf(btn.note);
@@ -198,8 +198,8 @@ const KeyboardVariant = {
     },
     
     onTap(engine, s, f, name, x, y) {
-        const btn = KeyboardHelper.checkClick(this.buttons, x, y);
-        if (!btn) return;
+        const {btn, processed} = KeyboardHelper.checkClick(this.buttons, x, y);
+        if (btn && processed) return;
 
         const isCorrect = btn.noteIdx === this.targetNoteIdx;
         const coords = isCorrect ? 
@@ -294,8 +294,8 @@ const IntervalVariant = {
     },
 
     onTap(engine, s, f, name, x, y) {
-        const btn = KeyboardHelper.checkClick(this.buttons, x, y);
-        if (!btn) return;
+        const {btn, processed} = KeyboardHelper.checkClick(this.buttons, x, y);
+        if (btn && processed) return;
         if (btn === this.btnOptMode) {
             setTimeout(() => this.initGame(engine), 100);
             return;
@@ -445,7 +445,8 @@ const SectionVariant = {
         engine.gameActive = true;  
     },
     onTap(engine, s, f, name, x, y, noteIdx) {
-        const btn = KeyboardHelper.checkClick(this.buttons, x, y);  
+        const {btn, processed} = KeyboardHelper.checkClick(this.buttons, x, y);  
+        if (btn && processed) return;
         if (f < this.range[0] || f > this.range[1]) return;
         const coords = engine.getFretCoordinates(s, f);
 
@@ -673,7 +674,8 @@ const ChordCompletionVariant = {
     
     onTap(engine, sIdx, f, name, x, y) {
 
-        const btn = KeyboardHelper.checkClick(this.buttons, x, y); 
+        const {btn, processed} = KeyboardHelper.checkClick(this.buttons, x, y); 
+        if (btn && processed) return;
         if (btn) {
             if (btn.id === 203){
                 this.lastBtn = btn;
@@ -830,7 +832,8 @@ const IntervalSearchVariant = {
     },
 
     onTap(engine, s, f, name, x, y) {
-        const btn = KeyboardHelper.checkClick(this.buttons, x, y);
+        const {btn, processed} = KeyboardHelper.checkClick(this.buttons, x, y);
+        if (btn && processed) return;
         if (btn) {
             if (btn.id === 203){
                 this.chordLabel = btn.note;

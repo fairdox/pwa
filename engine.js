@@ -3,7 +3,7 @@ const FLAT_NAMES  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb",
 
 const StringBasePitches = [40, 45, 50, 55, 59, 64]; 
 const STRINGS = [4, 9, 2, 7, 11, 4]; 
-const MARKERS = [3, 5, 7, 9, 12];
+const MARKERS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24]; // Fret markers (dots) on the fretboard
 let CHORD_FORMULAS=null; // to be loaded from db
 const designWidth = 390;
 const designHeight = 797;
@@ -71,6 +71,7 @@ class FretboardEngine {
         this.canvas.width = designWidth;
         this.canvas.height = designHeight;
         this.ctx = canvas.getContext('2d');
+        this.nbFrets=12; // default number of frets to display
         this.fretPositions = [];
         this.variant = null;
         
@@ -167,6 +168,19 @@ class FretboardEngine {
         
     }
 
+    getStringColor(sIdx) {
+        const colors = [
+            "#ff4d4d", // string 6 / low E
+            "#ffb84d",
+            "#ffff4d",
+            "#4dff88",
+            "#4db8ff",
+            "#b84dff"  // string 1 / high E
+        ];
+
+        return colors[sIdx] || "#2196F3";
+    }
+
     setUIProportions() {
         // 3. Define base sizes
         const baseBtnW = 45;
@@ -216,10 +230,27 @@ class FretboardEngine {
         return { x, y };
     }
 
+    getFretCoordinates2(stringIndex, fretNumber) {
+        const x = this.getStringX(stringIndex);
+        let y = 0;
+
+        if (fretNumber === 0) {
+            // Place the open string note slightly above the nut (fret 0)
+            y = this.fretPositions[0] - 15;
+        } else {
+            // Place the note in the middle of the fret space
+            const currentFretY = this.fretPositions[fretNumber];
+            const prevFretY = this.fretPositions[fretNumber - 1];
+            y = (currentFretY + prevFretY) / 2;
+        }
+
+        return { x, y };
+    }
+
     getNoteCoordinates(noteIdx, sIdx) {
         // Running backwards (12 down to 0) favors the higher fret over the open string
-        for (let f = 12; f >= 0; f--) {
-            if ((STRINGS[sIdx] + f) % 12 === noteIdx) {
+        for (let f = this.nbFrets; f >= 0; f--) {
+            if ((STRINGS[sIdx] + f) % this.nbFrets === noteIdx) {
                 return this.getFretCoordinates(sIdx, f);
             }
         }
@@ -240,9 +271,9 @@ class FretboardEngine {
         // 0.5 is the mathematical constant for a 12-fret octave span
         const scale = availH / 0.5; 
     
-        for (let i = 0; i <= 12; i++) {
+        for (let i = 0; i <= this.nbFrets; i++) {
             // Formula for logarithmic fret spacing
-            const dist = scale * (1 - Math.pow(2, -(i / 12)));
+            const dist = scale * (1 - Math.pow(2, -(i / this.nbFrets)));
             this.fretPositions.push(this.marginTop + dist);
         }
     }
@@ -375,8 +406,8 @@ class FretboardEngine {
         if (ty < this.fretPositions[0] && ty >= this.fretPositions[0] - 50) {
             fIdx = 0;
         } else {
-            // --- Handle Frets 1 to 12 ---
-            for (let i = 1; i <= 12; i++) {
+            // --- Handle Frets 1 to this.nbFrets ---
+            for (let i = 1; i <= this.nbFrets; i++) {
                 if (ty >= this.fretPositions[i - 1] && ty <= this.fretPositions[i]) {
                     fIdx = i;
                     break;
@@ -393,7 +424,7 @@ class FretboardEngine {
             const key = `${sIdx}-${fIdx}`;
             if (this.tappedKeys.has(key)) return;            
             
-            const noteIdx = (STRINGS[sIdx] + fIdx) % 12;
+            const noteIdx = (STRINGS[sIdx] + fIdx) % this.nbFrets;
             const noteName = NOTES[noteIdx];
 
             //alert (` ${sIdx} ${sIdx} notename=${noteName}`);
@@ -484,10 +515,10 @@ class FretboardEngine {
                 const visualX = firstStringX + (sIdx * spacingX);
 
                 // 5. Resolve labels and metadata
-                const noteIdx = (STRINGS[sIdx] + fIdx) % 12;
+                const noteIdx = (STRINGS[sIdx] + fIdx) % this.nbFrets;
                 const fingerId = fingers[sIdx];
                 // 1. Calculate the distance from root (e.g., 4 semitones)
-                const intervalDistance = (noteIdx - currentChordRootIdx + 12) % 12;
+                const intervalDistance = (noteIdx - currentChordRootIdx + this.nbFrets) % this.nbFrets;
                 const semitonePosition = semitones.indexOf(intervalDistance);
                 // If the note isn't in the chord (indexOf returns -1), fallback to a default color
                 const feedbackColor = (semitonePosition !== -1) 
@@ -694,10 +725,10 @@ class FretboardEngine {
             const x = this.marginX + (s * spacingX);
             
             // Change loop to go from 0 to 12 (13 positions total: Open + 12 Frets)
-            for (let f = 0; f <= 12; f++) {
+            for (let f = 0; f <= this.nbFrets; f++) {
                 // 1. Correct Note Calculation
                 // If f=0, semitones added is 0 (Open String)
-                const noteName = NOTES[(STRINGS[s] + f) % 12];
+                const noteName = NOTES[(STRINGS[s] + f) % this.nbFrets];
                 const score = this.stats[`${this.statKey }${s}-${noteName}`] ?? -1;
             
                 if (score === -1) continue;
@@ -749,7 +780,7 @@ class FretboardEngine {
         ctx.fillStyle = "rgba(255, 255, 255, 0.1 )"; // Soft highlight
 
         const fbTop = this.fretPositions[0];
-        const fbBottom = this.fretPositions[12];
+        const fbBottom = this.fretPositions[this.nbFrets];
 
         const xleft = this.getStringX(0)-10;
         const w = this.getStringX(5)+10- xleft;
@@ -823,12 +854,12 @@ class FretboardEngine {
             // 3. Draw Strings (applying offsetX)
             let x = 0;
             for (let i = 0; i < 6; i++) {
-                ctx.strokeStyle = "#a87f32";
+                ctx.strokeStyle = this.getStringColor(i);
                 ctx.lineWidth = 1 + ((7 - i) * 0.5);
                 x = this.getStringX(i);
                 ctx.beginPath(); 
                 ctx.moveTo(x, this.fretPositions[0]-10); 
-                ctx.lineTo(x, this.fretPositions[12]+10); 
+                ctx.lineTo(x, this.fretPositions[this.nbFrets]+10); 
                 ctx.stroke();
             }
 
@@ -837,12 +868,12 @@ class FretboardEngine {
             x = offsetX+this.marginX;
             ctx.beginPath(); 
             ctx.moveTo(x, this.fretPositions[0]); 
-            ctx.lineTo(x, this.fretPositions[12]+10); 
+            ctx.lineTo(x, this.fretPositions[this.nbFrets]+10); 
             ctx.stroke();
             x = offsetX + activeW - this.marginX;
             ctx.beginPath(); 
             ctx.moveTo(x, this.fretPositions[0]); 
-            ctx.lineTo(x, this.fretPositions[12]+10); 
+            ctx.lineTo(x, this.fretPositions[this.nbFrets]+10); 
             ctx.stroke();
 
             // Highlight frets option
@@ -916,8 +947,8 @@ class FretboardEngine {
                 ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
                 ctx.textAlign = "center";
                 for (let s = 0; s < 6; s++) {
-                    for (let f = 1; f <= 12; f++) {
-                        if (NOTES[(STRINGS[s] + f) % 12] === this.variant.targetNote) {
+                    for (let f = 1; f <= this.nbFrets; f++) {
+                        if (NOTES[(STRINGS[s] + f) % this.nbFrets] === this.variant.targetNote) {
                             const x = offsetX + this.marginX + 10 + (s * spacingX);
                             const y = (this.fretPositions[f] + this.fretPositions[f - 1]) / 2;
                             ctx.fillText(this.variant.targetNote, x, y + 6);
@@ -1035,7 +1066,7 @@ class FretboardEngine {
 
     drawChordMap(rootNote, semitones, formula, data) {
         const {
-            startFret = 0, endFret = 12, drawTappedOnly = false, 
+            startFret = 0, endFret = this.nbFrets, drawTappedOnly = false, 
             drawNoteNames = false, tappedList = [], focus = null, drawFormula = false, fntSize = 16
         } = data;
 
@@ -1106,7 +1137,7 @@ class FretboardEngine {
 
     calculateAllShapePositions(rootNoteName) {
         const rootIdx = NOTES.indexOf(rootNoteName);
-        const getFret = (stringIdx, targetNoteIdx) => (targetNoteIdx - StringBasePitches[stringIdx] + 120) % 12;
+        const getFret = (stringIdx, targetNoteIdx) => (targetNoteIdx - StringBasePitches[stringIdx] + 120) % this.nbFrets;
     
         const eRoot = getFret(0, rootIdx); // Root on Low E
         const aRoot = getFret(1, rootIdx); // Root on A string
@@ -1118,8 +1149,8 @@ class FretboardEngine {
             "D": getFret(2, rootIdx), // Root on D string
     
             // "Backward" Shapes (We shift the startFret back so the Root is at the end)
-            "G": (eRoot - 3 + 12) % 12, 
-            "C": (aRoot - 3 + 12) % 12
+            "G": (eRoot - 3 + this.nbFrets) % this.nbFrets, 
+            "C": (aRoot - 3 + this.nbFrets) % this.nbFrets
         };
     }   
     
@@ -1148,8 +1179,8 @@ class FretboardEngine {
             // If the offset pushes us to the "Ghost Fret", 
             // we draw the line to the very edge of the 12th fret
             let pos = this.getFretCenter(s, f);
-            if (f > 12) {
-                pos = this.getFretCenter(s, 12);
+            if (f > this.nbFrets) {
+                pos = this.getFretCenter(s, this.nbFrets);
                 pos.y=pos.y+30;
             }
             if (f <0) {
@@ -1163,8 +1194,8 @@ class FretboardEngine {
         for (let s = 5; s >= 0; s--) {
             let f = startFret + minOffsets[s];
             let pos = this.getFretCenter(s, f);
-            if (f > 12) {
-                pos = this.getFretCenter(s, 12);
+            if (f > this.nbFrets) {
+                pos = this.getFretCenter(s, this.nbFrets);
                 pos.y=pos.y+30;
             }
             if (f <0) {
@@ -1222,7 +1253,7 @@ class FretboardEngine {
             // Scan 6 frets ahead of the startFret to find scale members
             for (let f = 0; f < 6; f++) {
                 const currentPitch = stringRoot + startFret + f;
-                const dist = (currentPitch - rootIdx + 120) % 12;
+                const dist = (currentPitch - rootIdx + 120) % this.nbFrets;
     
                 if (scaleST.includes(dist)) {
                     if (!foundAny) {
@@ -1251,10 +1282,10 @@ class FretboardEngine {
                 
                 // FAKE FRET LOGIC:
                 // (f + 12) % 12 turns -1 into 11, 0 into 0, 13 into 1...
-                const virtualFret = (f + 12) % 12; 
+                const virtualFret = (f + this.nbFrets) % this.nbFrets; 
                 
                 const pitch = stringPitch + virtualFret;
-                const dist = (pitch - rootIdx + 120) % 12;
+                const dist = (pitch - rootIdx + 120) % this.nbFrets;
     
                 if (scaleST.includes(dist)) {
                     if (sMin === null) sMin = offset;
@@ -1277,7 +1308,7 @@ class FretboardEngine {
             let startFret = shapePositions[shapeKey];
             
             // Keep everything in a consistent 0-11 range before drawing
-            startFret = (startFret + 12) % 12; 
+            startFret = (startFret + this.nbFrets) % this.nbFrets; 
             
             const dynamicData = this.getTightOffsets(startFret, scaleST, rootIdx);
             this.drawShapePolygon(startFret, shapeKey, dynamicData);
@@ -1546,6 +1577,11 @@ class FretboardEngine {
             const delay = index * strumSpeed;
             this.audio.playNote(pitch, delay);
         });
+    }
+
+    playString(sIdx, fret=0, delay =0) {
+        const pitch = StringBasePitches[sIdx] + fret;
+        this.audio.playNote(pitch, delay);
     }
 
     async  releaseWakeLock() {

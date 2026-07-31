@@ -189,14 +189,14 @@ const KeyboardHelper = {
             pos = engine.getFretCoordinates(0,6);
             const arrowsL=KeyboardHelper.addArrowKeys(engine,variant,
                                         {x:pad, y:pos.y, 
-                                         fct1: ()=>  variant.incrementRoot(engine,+1),
-                                         fct2: ()=>  variant.incrementRoot(engine,-1),
+                                         fct1: ()=>  variant.incrementArrowA(engine,+1),
+                                         fct2: ()=>  variant.incrementArrowA(engine,-1),
                                         });
                 
             const arrowsR=KeyboardHelper.addArrowKeys(engine,variant,
                                         {x:w-pad-btnw, y:pos.y, 
-                                         fct1: ()=>  variant.incrementChord(engine,-1),
-                                         fct2: ()=>  variant.incrementChord(engine,+1),
+                                         fct1: ()=>  variant.incrementArrowB(engine,-1),
+                                         fct2: ()=>  variant.incrementArrowB(engine,+1),
                                         });
             return {btnopt,btnHint,btnClear,arrowsL, arrowsR};
         }
@@ -405,6 +405,7 @@ const KeyboardHelper = {
     },
 
     // Hit detection for any variant using this helper
+    // returns a tuple {bt, bool} :  btn if found, and True if it was processed (callback or toggle), False otherwise
     checkClick(buttons, x, y) {
         //alert(`${x} ${y}`);
         const btn= buttons.find(b => x >= b.x && x <= (b.x + b.w) && y >= b.y && y <= (b.y + b.h) && !b.hidden);
@@ -422,19 +423,19 @@ const KeyboardHelper = {
                 }
                 if (btn.toggleState && btn.toggleTrueCallback && typeof btn.toggleTrueCallback === 'function') {
                     btn.toggleTrueCallback();
-                    return null;
+                    return {btn, processed: true};
                 }
                 if (!btn.toggleState && btn.toggleFalseCallback && typeof btn.toggleFalseCallback === 'function') {
                     btn.toggleFalseCallback();
-                    return null;
+                    return {btn, processed: true};
                 }
             }
             if (btn.callback && typeof btn.callback === 'function') {
                 btn.callback();
-                return null;
+                return {btn, processed: true};
             }
         }
-        return btn;
+        return {btn, processed: false};
     },
 
     // Standard rendering loop

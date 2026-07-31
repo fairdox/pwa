@@ -189,8 +189,9 @@
         <button onclick="switchGame('chords')">Chord Speller</button>
         <button onclick="switchGame('IntSearch')">Interval search</button>      
         <button onclick="switchGame('show')">Fretboard slideshow</button>
-        <button onclick="switchGame('scales1')">Scales</button>     
-        <button onclick="switchGame('grid')">Chord Grid</button>      
+        <button onclick="switchGame('scales1')">Scales</button>
+        <button onclick="switchGame('grid')">Chord Grid</button>
+        <button onclick="switchGame('tab')">Tabs</button>
         <hr>
         <button id="optionsBtn" onclick="toggleMenu(false);toggleMenuPage(true);">Options...</button>
     </div>
@@ -217,6 +218,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="db.js?v=1.001"></script>
 <script src="variants.js?v=1.829"></script>
+<script src="TabPlayerVariant.js?v=0.9"></script>
 <script src="scales.js?v=1.10"></script>
 <script src="keyhelper.js?v=1.14"></script>
 <script src="engine.js?v=1.002"></script>
@@ -272,6 +274,7 @@ function switchGame(type) {
     game.viewWidthFactor=0.8;    
     game.hasFret=true;
     game.autoPauseDuration=10000;
+    game.nbFrets=12;
     if (game.variant) saveVariantState(game.variant);
     if (type === 'section' ) {
         game.variant = SectionVariant;
@@ -317,6 +320,12 @@ function switchGame(type) {
     else if (type === 'grid') {
         game.variant = ChordGridVariant;
         game.hasFret=false;
+        game.autoPauseDuration=3600000;
+    }  
+    else if (type === 'tab') {
+        game.variant = TabPlayerVariant;
+        game.hasFret=true;
+        game.nbFrets=16;
         game.autoPauseDuration=3600000;
     }  
 

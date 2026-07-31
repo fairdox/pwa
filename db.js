@@ -182,6 +182,41 @@ async getSongByName(songName) {
   }
 },
 
+
+/**
+ * Fetches a tab from Supabase by its name.
+ * @param {object} supabase - The initialized Supabase client instance.
+ * @param {string} tabName - The name of the tab to search for.
+ * @returns {Promise<object|null>} The tab object, or null if not found.
+ */
+async getTabByName(tabName) {
+  try {
+    const { data, error } = await _supabase
+      .from('tablatures')
+      .select('id, name, tabs')
+      .eq('name', tabName)
+      .single(); 
+
+    if (error) {
+      // Handle the case where the tab simply doesn't exist gracefully
+      if (error.code === 'PGRST116') {
+        console.warn(`Tab "${tabName}" not found.`);
+        return null;
+      }
+      throw error;
+    }
+    const tabs = {
+        id: data.id,
+        name: data.name,
+        tabs: data.tabs || ""
+      };
+    return tabs;
+  } catch (error) {
+    console.error('Error fetching tab:', error.message);
+    throw error;
+  }
+},
+
   async saveSong(title, chordIds) {
     const user = await this.getUser();
     const { data, error } = await _supabase

@@ -2,7 +2,9 @@ const SCALES = [
     { label: "Maj Pentatonic", formula: ["1", "2", "3", "5", "6"], st: [0, 2, 4, 7, 9] },
     { label: "Min Pentatonic", formula: ["1", "b3", "4", "5", "b7"], st: [0, 3, 5, 7, 10] },
     { label: "Major Scale", formula: ["1", "2", "3", "4", "5", "6", "7"], st: [0, 2, 4, 5, 7, 9, 11] },
-    { label: "Natural Minor", formula: ["1", "2", "b3", "4", "5", "b6", "b7"], st: [0, 2, 3, 5, 7, 8, 10] }
+    { label: "Natural Minor", formula: ["1", "2", "b3", "4", "5", "b6", "b7"], st: [0, 2, 3, 5, 7, 8, 10] },
+    { label: "Dorian", formula: ["1", "2", "b3", "4", "5", "6", "b7"], st: [0, 2, 3, 5, 7, 9, 10] },
+    { label: "Blues Scale", formula: ["1", "b3", "4", "b5", "5", "b7"], st: [0, 3, 5, 6, 7, 10] }
 ];
 
 const ScalePathVariant = {
@@ -49,13 +51,13 @@ const ScalePathVariant = {
         engine.livesLeft=5;
         this.initGame(engine);        
     },
-    incrementRoot(engine,inc=1, reset=true,){
+    incrementArrowA(engine,inc=1, reset=true,){
         const len = NOTES.length;
         this.rootIdx = (this.rootIdx + inc + len) % len;
         if (reset) this.initGame(engine);
     },
 
-    incrementChord(engine,inc=1, reset=true){
+    incrementArrowB(engine,inc=1, reset=true){
         const len = 11; // starting fret for the box from 0 to 10, (10 means all fretboard)
         this.selectedTopFret = (this.selectedTopFret + inc + len) % len ;
         if (reset) this.initGame(engine);

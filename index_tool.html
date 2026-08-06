@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chord Parser Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            font-family: monospace;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .actions {
+            margin-bottom: 15px;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border: 1px solid #ccc;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Chord Data Parser Test</h2>
+    <p>Paste the raw HTML chord lines below and click Convert.</p>
+    
+    <textarea id="inputData" placeholder="Paste raw chord data here..."></textarea>
+    <br>
+    <div class="actions">
+        <button id="convertBtn">Convert to JSON</button>
+        <button id="copyBtn" disabled>Copy JSON</button>
+    </div>
+
+    <h3>Output JSON</h3>
+    <pre id="outputJson">// JSON output will appear here</pre>
+
+    <script>
+        function parseChordData(rawInput) {
+            const chordMap = {};
+            const regex = /data-name="([^"]+)"[^>]*>([^<]+)<\/span>\*?\s+([xX\d]{6})/g;
+            
+            let match;
+            while ((match = regex.exec(rawInput)) !== null) {
+                const chordName = match[1].trim();
+                const fretString = match[3];
+                
+                const frets = fretString.split('').map(char => {
+                    if (char.toLowerCase() === 'x') {
+                        return -1;
+                    }
+                    return parseInt(char, 10);
+                });
+                
+                chordMap[chordName] = {
+                    frets: frets,
+                    barres: [],
+                    baseFret: 1
+                };
+            }
+            
+            return JSON.stringify(chordMap, null, 2);
+        }
+
+        const convertBtn = document.getElementById('convertBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const outputJson = document.getElementById('outputJson');
+        const inputData = document.getElementById('inputData');
+
+        convertBtn.addEventListener('click', () => {
+            const input = inputData.value;
+            const output = parseChordData(input);
+            outputJson.textContent = output;
+            
+            // Enable copy button only if we have valid parsed JSON data
+            if (output !== '{}' && input.trim() !== '') {
+                copyBtn.disabled = false;
+            } else {
+                copyBtn.disabled = true;
+            }
+        });
+
+        copyBtn.addEventListener('click', () => {
+            const textToCopy = outputJson.textContent;
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        });
+    </script>
+
+</body>
+</html>

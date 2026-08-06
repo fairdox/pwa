@@ -14,7 +14,8 @@ function saveVariantState(variant) {
         chordIdx: variant.chordIdx,
         selectedTopFret: variant.selectedTopFret,
         targetIdx: variant.targetIdx, // This covers stIdx or whatever 'target' you use
-        startFret: variant.startFret  // Added this since you're practicing Box 5!
+        startFret: variant.startFret,  // Added this since you're practicing Box 5!
+        state: variant.state || {} // Save any additional state if needed
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(master));
@@ -37,6 +38,7 @@ function restoreVariantState(variant) {
     if (saved.selectedTopFret !== undefined) variant.selectedTopFret = saved.selectedTopFret;  
     if (saved.targetIdx !== undefined) variant.targetIdx = saved.targetIdx;
     if (saved.startFret !== undefined) variant.startFret = saved.startFret;
+    if (saved.state !== undefined) variant.state = saved.state;
 }
 
 const ExtremeAccidentalVariant = {

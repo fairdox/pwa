@@ -1,4 +1,4 @@
-const NOTES =       ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+ const NOTES =       ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLAT_NAMES  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];    
 
 const StringBasePitches = [40, 45, 50, 55, 59, 64]; 
@@ -68,8 +68,8 @@ class FretboardEngine {
         CHORD_FORMULAS= chordFormulas;
         this._localStorageKey = 'fretStats';
         this.canvas = canvas;
-        this.canvas.width = designWidth;
-        this.canvas.height = designHeight;
+        this.designWidth = designWidth;
+        this.designHeight = designHeight;
         this.ctx = canvas.getContext('2d');
         this.nbFrets=12; // default number of frets to display
         this.fretPositions = [];
@@ -137,35 +137,92 @@ class FretboardEngine {
     }
 
     resize() {
-        this.isLandscape = window.innerWidth > window.innerHeight;
-        const app = document.getElementById("app");
-        if (this.isLandscape) {
-            app.style.transform = "translate(-50%, -50%) rotate(-90deg)";
-        } else {
-            app.style.transform = "translate(-50%, -50%) rotate(0deg)";
-        }        
         const vw = window.visualViewport?.width || window.innerWidth;
         const vh = window.visualViewport?.height || window.innerHeight;
 
-        const usableWidth  = this.isLandscape ? vh : vw;
-        const usableHeight = this.isLandscape ? vw : vh;
+        // Use the wide layout only for variants that request it.
+        const wideCanvas = this.variant?.wideCanvas === true;
 
-        const scale = Math.min(
-            usableWidth / designWidth,
-            usableHeight / designHeight
-        );
+        if (wideCanvas) {
+            // Do not rotate the complete app on desktop.
+            this.isLandscape = false;
 
-        this.canvas.style.width  = (designWidth * scale) + 'px';
-        this.canvas.style.height = (designHeight * scale) + 'px';
+            const app = document.getElementById("app");
+            app.style.transform = "translate(-50%, -50%) rotate(0deg)";
 
-        this.scale = this.canvas.width / designWidth;
+            // Scale according to the original design height.
+            const scale = vh / designHeight;
+
+            // Keep the canvas height at the original logical height,
+            // but increase its logical width to match the page aspect ratio.
+            this.canvas.height = designHeight;
+            this.canvas.width = Math.max(
+                designWidth,
+                Math.round(vw / scale)
+            );
+
+            this.canvas.style.width = vw + "px";
+            this.canvas.style.height = vh + "px";
+        } else {
+            // Existing phone behaviour.
+            this.isLandscape = vw > vh;
+
+            const app = document.getElementById("app");
+            app.style.transform = this.isLandscape
+                ? "translate(-50%, -50%) rotate(-90deg)"
+                : "translate(-50%, -50%) rotate(0deg)";
+
+            const usableWidth = this.isLandscape ? vh : vw;
+            const usableHeight = this.isLandscape ? vw : vh;
+
+            const scale = Math.min(
+                usableWidth / designWidth,
+                usableHeight / designHeight
+            );
+
+            this.canvas.width = designWidth;
+            this.canvas.height = designHeight;
+
+            this.canvas.style.width = `${designWidth * scale}px`;
+            this.canvas.style.height = `${designHeight * scale}px`;
+        }
+
+        // The original app layout always remains 390 logical pixels wide.
+        this.layoutWidth = designWidth;
+
+        // Your internal drawing coordinates are logical canvas coordinates,
+        // so this remains 1 unless you intentionally scale the backing store.
+        this.scale = this.canvas.height / designHeight;
         this.scaleH = this.canvas.height / designHeight;
+
         this.marginX = 25 * this.scale;
-        this.marginTop = 60 * this.scale; 
+        this.marginTop = 60 * this.scale;
         this.marginBottom = 60 * this.scale;
+
         this.calculateFrets();
         this.setUIProportions();
-        
+    }
+
+    getFretboardLayout() {
+        const layoutW = this.layoutWidth || designWidth;
+        const activeW = layoutW * (this.viewWidthFactor || 1.0);
+
+        // Center the fretboard inside the original 390-wide phone area,
+        // not inside the complete desktop canvas.
+        const offsetX = (layoutW - activeW) / 2;
+
+        const spacingX =
+            (activeW - (this.marginX + 10) * 2) / 5;
+
+        const firstStringX =
+            offsetX + this.marginX + 10;
+
+        return {
+            firstStringX,
+            spacingX,
+            offsetX,
+            activeW
+        };
     }
 
     getStringColor(sIdx) {
@@ -214,35 +271,18 @@ class FretboardEngine {
     }
 
     getOffsetX() {
-        const activeW = this.canvas.width * (this.viewWidthFactor || 1.0);
-        return (this.canvas.width - activeW) / 2;
+        return this.getFretboardLayout().offsetX;
     }
 
     getFretCoordinates(sIdx, fIdx) {
-        const fullW = this.canvas.width;
-        const activeW = fullW * (this.viewWidthFactor || 1.0);
-        const offsetX = (fullW - activeW) / 2;
-        
-        const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
-        const x = offsetX + this.marginX + 10 + (sIdx * spacingX);
-        const y = (this.fretPositions[fIdx] + this.fretPositions[fIdx - 1]) / 2;
-    //this.variant.label=` >>${sIdx} ${fIdx} ${x} ${y}`;        
-        return { x, y };
-    }
+        const { firstStringX, spacingX } =
+            this.getFretboardLayout();
 
-    getFretCoordinates2(stringIndex, fretNumber) {
-        const x = this.getStringX(stringIndex);
-        let y = 0;
+        const x = firstStringX + sIdx * spacingX;
 
-        if (fretNumber === 0) {
-            // Place the open string note slightly above the nut (fret 0)
-            y = this.fretPositions[0] - 15;
-        } else {
-            // Place the note in the middle of the fret space
-            const currentFretY = this.fretPositions[fretNumber];
-            const prevFretY = this.fretPositions[fretNumber - 1];
-            y = (currentFretY + prevFretY) / 2;
-        }
+        const y =
+            (this.fretPositions[fIdx] +
+            this.fretPositions[fIdx - 1]) / 2;
 
         return { x, y };
     }
@@ -279,24 +319,23 @@ class FretboardEngine {
     }
 
     getFretCenter(sIdx, fIdx) {
-        // 1. Get Horizontal Position (Strings)
-        const fullW = this.canvas.width;
-        const activeW = fullW * (this.viewWidthFactor || 1.0);
-        const offsetX = (fullW - activeW) / 2;
-        // spacingX is the distance between vertical string lines
-        const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
-        const x = offsetX + this.marginX + 10 + (sIdx * spacingX);
+        const { firstStringX, spacingX } =
+            this.getFretboardLayout();
+
+        const x = firstStringX + sIdx * spacingX;
 
         this.stringSpacing = spacingX;
-        // 2. Get Vertical Position (Frets)
+
         let y;
+
         if (fIdx === 0) {
-            // For the open string, place it slightly above the nut (fret 0 line)
-            y = this.fretPositions[0] - 15; 
+            y = this.fretPositions[0] - 15;
         } else {
-            // Midpoint between this fret line and the one before it
-            y = (this.fretPositions[fIdx] + this.fretPositions[fIdx - 1]) / 2;
-        }    
+            y =
+                (this.fretPositions[fIdx] +
+                this.fretPositions[fIdx - 1]) / 2;
+        }
+
         return { x, y };
     }
     
@@ -342,29 +381,16 @@ class FretboardEngine {
                         { color:"#666", duration: -1, size:25, x:w/2, y:h/3});
     }
     
-    // const {  firstStringX, spacingX, offsetX , activeW} = engine.getFretboardLayout()
-    getFretboardLayout() {
-        const fullW = this.canvas.width;
-        const activeW = fullW * (this.viewWidthFactor || 1.0);
-        const offsetX = (fullW - activeW) / 2;
-        const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
-        const firstStringX = offsetX + this.marginX + 10;
-    
-        return { firstStringX, spacingX, offsetX , activeW};
-    }
-    getStringX(stringNum){
-        const fullW = this.canvas.width;
-        const activeW = fullW * (this.viewWidthFactor || 1.0);
-        const offsetX = (fullW - activeW) / 2; // The gap to the left of the centered area
-        const spacingX = (activeW - (this.marginX + 10) * 2) / 5;
-        const x = offsetX + this.marginX + 10 + (stringNum * spacingX);
-        if (this.show3D){
-            return x + (this.tiltX * 2);
-        }else{
-            return x;
-        }
-    }
+    getStringX(stringNum) {
+        const { firstStringX, spacingX } =
+            this.getFretboardLayout();
 
+        const x = firstStringX + stringNum * spacingX;
+
+        return this.show3D
+            ? x + this.tiltX * 2
+            : x;
+    }
     handleTouch(e) {
         if (this.isAutoPaused || !this.gameActive) {
             this.reset(true);
@@ -705,11 +731,7 @@ class FretboardEngine {
         if (!this.showDebug || !this.isAutoPaused) return;
         if (this.variant?.skipHeatMap) return;
         const ctx = this.ctx;
-        const fullW = this.canvas.width;
-        const activeW = fullW * (this.viewWidthFactor || 1.0);
-        const offsetX = (fullW - activeW) / 2; // The gap to the left of the centered area
-
-        const spacingX = (activeW - this.marginX * 2) / 5;
+        const { firstStringX, spacingX, offsetX, activeW } =  this.getFretboardLayout();
     
         let scores = Object.values(this.stats).filter(s => s !== -1);
         if (scores.length === 0) return;
@@ -803,7 +825,6 @@ class FretboardEngine {
         
         // 1. Calculate dimensions and Horizontal Centering
         const fullW = this.canvas.width;
-        const activeW = fullW * (this.viewWidthFactor || 1.0);
         const h = this.canvas.height;
         
         const factor = this.viewHeightFactor || 1.0;
@@ -818,7 +839,7 @@ class FretboardEngine {
            if (this.showDebug) this.renderStats(false);
         }
 
-        const { firstStringX, spacingX , offsetX} = this.getFretboardLayout();
+        const { firstStringX, spacingX, offsetX, activeW } =  this.getFretboardLayout();
 
         if (this.hasFret){
     

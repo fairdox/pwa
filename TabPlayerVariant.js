@@ -1,6 +1,7 @@
 const TabPlayerVariant = {
     label: "",
     statKey: "Ta",
+    wideCanvas: true,    
 
     DEFAULTS: {
         previewMode: "slide", // "slide", "falling", "ghost", "none"
@@ -12,13 +13,14 @@ const TabPlayerVariant = {
     },
 
     init(engine) {
+        engine.resize();
         this.initSettings(engine);
         this.initButtons(engine);
 
         this.currentSectionIdx = 0;
         this.currentMeasureIdx = 0;
         this.showAllMeasures = true;
-        this.loadTab(engine, "Amalgame").catch(err => {
+        this.loadTab(engine, "Do it again (sitar)").catch(err => {
             console.error("Error loading tab:", err);
             this.label = "Error loading tab.";
         })
@@ -46,14 +48,21 @@ const TabPlayerVariant = {
             this.song = this.parseVTab(tab.tabs);
             this.playRange = this.createDefaultPlayRange(this.song);
             this.label = `Loaded "${tabName}".`;
+            this.tabName = tabName;
+            if (this.state.tabName !== tabName) 
+                this.state=null;
+            else{
+                this.playRange = this.state.playRangeOverride || this.playRange;
+                this.song.bpm = this.state.bpmOverride || this.song.bpm;
+            }
             this.initGame(engine);}
     },
 
     initButtons(engine) {
         const pad = engine.uiprop.sidePadding;
         const scale = engine.uiprop.scale;
-        const pos = engine.getFretCoordinates(0, 3);
-        const w = engine.canvas.width;
+        let pos = engine.getFretCoordinates(0, 3);
+        const w = engine.layoutWidth;
 
         let kobj=KeyboardHelper.addArrowKeys(engine,this,
                                     {x:pad, y: pos.y+40,
@@ -98,6 +107,15 @@ const TabPlayerVariant = {
             scale * 35,
             19
         );
+
+        pos = engine.getFretCoordinates(0, 10);
+        kobj=KeyboardHelper.addArrowKeys(engine,this,
+                                    {x:pad, y: pos.y,
+                                     btnh: scale*30, btnw: scale*30, vgap: 10,
+                                     fct1: ()=>  this.incrementSpeed(engine,-0.1),
+                                     fct2: ()=>  this.incrementSpeed(engine,+0.1),
+                                    });
+        this.bpmLabel = kobj.label;                                    
     },
 
     createDefaultPlayRange(song) {
@@ -136,6 +154,12 @@ const TabPlayerVariant = {
         engine.score = 0;
 
         this.preparePlayback(engine);
+        this.bpmLabel.text = `BPM:${Math.round(this.song.bpm)}`;
+        this.state = {
+            tabName: this.tabName,
+            playRangeOverride: this.playRange,
+            bpmOverride: this.song.bpm,
+        }
     },
 
     incrementSectionStart(engine, inc) { // used for sections
@@ -174,6 +198,13 @@ const TabPlayerVariant = {
         if (!inc) return;
         this.moveRangeEnd(inc);
         this.normalizePlayRange();
+        this.initGame(engine);
+    },
+
+    incrementSpeed(engine, inc) {
+        if (!inc) return;
+        const newBpm = this.clamp(this.song.bpm * (1+inc), 20, 300);
+        this.song.bpm = newBpm;
         this.initGame(engine);
     },
 
@@ -320,8 +351,11 @@ const TabPlayerVariant = {
         if (!durationObj) return 1;
 
         let beats = 4 / durationObj.baseNum;
+
         if (durationObj.isDotted) beats *= 1.5;
         if (durationObj.doubleDotted) beats *= 1.75;
+        if (durationObj.isTriplet) beats *= 2 / 3;
+
         return beats;
     },
 
@@ -519,12 +553,38 @@ const TabPlayerVariant = {
 
     drawSlidingNote(engine, note, alpha, elapsedTime, previewWindow, nodeSize) {
         const ctx = engine.ctx;
-        const target = engine.getFretCoordinates(note.stringIdx, note.fret === "X" ? 0 : note.fret);
-        const startX = this.slideStartX || engine.canvas.width + nodeSize * 2;
-        const progress = this.getPreviewProgress(note, elapsedTime, previewWindow);
-        const x = startX + (target.x - startX) * progress;
 
-        this.drawFilledNote(ctx, x, target.y, nodeSize, engine.getStringColor(note.stringIdx), this.getNoteLabel(note), alpha);
+        const target = engine.getFretCoordinates(
+            note.stringIdx,
+            note.fret === "X" ? 0 : note.fret
+        );
+
+        const startX = this.clamp(
+            this.slideStartX ?? engine.canvas.width * 0.7,
+            engine.layoutWidth,
+            engine.canvas.width
+        );
+
+        const progress =
+            this.getPreviewProgress(
+                note,
+                elapsedTime,
+                previewWindow
+            );
+
+        const x =
+            startX +
+            (target.x - startX) * progress;
+
+        this.drawFilledNote(
+            ctx, 
+            x,
+            target.y,
+            nodeSize,
+            engine.getStringColor(note.stringIdx),
+            this.getNoteLabel(note),
+            alpha
+        );
     },
 
     drawFallingNote(engine, note, alpha, elapsedTime, previewWindow, nodeSize) {
@@ -559,7 +619,7 @@ const TabPlayerVariant = {
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = "white";
+        ctx.fillStyle = "black";
         ctx.font = `bold ${Math.max(12, radius * 0.7)}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -744,15 +804,30 @@ const TabPlayerVariant = {
     },
 
     parseDurationToken(rawDuration) {
-        const s = String(rawDuration || "4").toLowerCase().trim();
+        let s = String(rawDuration || "4")
+            .toLowerCase()
+            .trim();
+
+        const isTriplet = s.endsWith("t");
+
+        if (isTriplet) {
+            s = s.slice(0, -1);
+        }
+
         const doubleDotted = s.endsWith("dd");
         const isDotted = !doubleDotted && s.endsWith("d");
-        const base = doubleDotted ? s.slice(0, -2) : isDotted ? s.slice(0, -1) : s;
+
+        const base = doubleDotted
+            ? s.slice(0, -2)
+            : isDotted
+                ? s.slice(0, -1)
+                : s;
 
         return {
             baseNum: parseFloat(base) || 4,
             isDotted,
-            doubleDotted
+            doubleDotted,
+            isTriplet
         };
     }
 };

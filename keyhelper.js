@@ -101,7 +101,7 @@ const KeyboardHelper = {
     addArrowKeys(engine, variant, options = {}) {
         const uiprop = engine.uiprop;
         const {
-            x = engine.canvas.width / 2,
+            x = engine.layoutWidth / 2,
             y = 18,
             color = "green",
             size = 24,
@@ -117,7 +117,7 @@ const KeyboardHelper = {
         } = options;
 
         const h = engine.canvas.height;
-        const w = engine.canvas.width;
+        const w = engine.layoutWidth;
         let x1 = 0, x2 = 0; xlbl = 0;
         let y1 = 0, y2 = 0; ylbl = 0;
         if (horizontal) {
@@ -146,7 +146,7 @@ const KeyboardHelper = {
     },
 
     addOptionKey(engine, variant, fretnum, text, leftSide = false) {
-        const w = engine.canvas.width;
+        const w = engine.layoutWidth;
         const pos = engine.getFretCoordinates(0, fretnum);
         const pad = engine.uiprop.sidePadding;
         const btnw = engine.uiprop.arrowbtnw;
@@ -164,7 +164,7 @@ const KeyboardHelper = {
 
     addFunctionKeys(engine, variant, arrows=true){
         const h = engine.canvas.height;
-        const w = engine.canvas.width;
+        const w = engine.layoutWidth;
  
         const labelWidth = 60;
         const pad = engine.uiprop.sidePadding;
@@ -219,7 +219,7 @@ const KeyboardHelper = {
         const rows=Math.ceil(masterList.length/cols) ;
         const totalW = (cols * btnW) + ((cols - 1) * gap);
         const totalH = (rows * btnH) + (rows*gap)  ; 
-        const startX = (engine.canvas.width - totalW) / 2;
+        const startX = (engine.layoutWidth - totalW) / 2;
         const startY = engine.canvas.height - totalH ; // Move up if list gets long
     
         masterList.forEach((interval, i) => {
@@ -288,7 +288,7 @@ const KeyboardHelper = {
         if (!variant.buttons) variant.buttons = [];
         const id = 203;
         const h = engine.canvas.height;
-        const w = engine.canvas.width;
+        const w = engine.layoutWidth;
         const pad = engine.uiprop.sidePadding;
         const scale = engine.uiprop.scale;
         const optbtnw = engine.uiprop.optbtnW;

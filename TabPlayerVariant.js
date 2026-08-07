@@ -1,3 +1,4 @@
+
 const TabPlayerVariant = {
     label: "",
     statKey: "Ta",
@@ -359,8 +360,8 @@ const TabPlayerVariant = {
         return beats;
     },
 
-    validateSectionTiming(section) {
-        const expectedBeats = this.getMeterBeats(this.song.meter);
+    validateSectionTiming(section, meter) {
+        const expectedBeats = this.getMeterBeats(meter);
 
         section.measures.forEach(measure => {
             const totalBeats = measure.reduce((sum, stepNotes) => {
@@ -469,7 +470,7 @@ const TabPlayerVariant = {
         if (!step) return;
 
         step.notes
-            .filter(note => !note.isMuted && !note.isRest)
+            .filter(note => !note.isMuted && !note.isRest && !note.isGhostNote)
             .sort((a, b) => b.stringIdx - a.stringIdx)
             .forEach((note, i) => {
                 engine.playString(note.stringIdx, note.fret, i * this.DEFAULTS.strumDelay);
@@ -548,10 +549,18 @@ const TabPlayerVariant = {
 
     getNoteLabel(note) {
         if (note.isMuted) return "X";
-        return this.isPlaying ? String(note.fret) : String(note.sequence);
+
+        const label = this.isPlaying
+            ? String(note.fret)
+            : String(note.sequence);
+
+        return note.isGhostNote
+            ? `(${label})`
+            : label;
     },
 
     drawSlidingNote(engine, note, alpha, elapsedTime, previewWindow, nodeSize) {
+        if (note.isGhostNote) return;
         const ctx = engine.ctx;
 
         const target = engine.getFretCoordinates(
@@ -588,6 +597,7 @@ const TabPlayerVariant = {
     },
 
     drawFallingNote(engine, note, alpha, elapsedTime, previewWindow, nodeSize) {
+        if (note.isGhostNote) return;
         const ctx = engine.ctx;
         const fretSpacing = Math.abs(engine.fretPositions[1] - engine.fretPositions[0]);
         const startY = note.y - (this.fallDistanceFrets || this.DEFAULTS.fallDistanceFrets) * fretSpacing;
@@ -607,7 +617,9 @@ const TabPlayerVariant = {
             ? "#777777"
             : note.isMuted
                 ? "#d32f2f"
-                : engine.getStringColor(note.stringIdx);
+                : note.isGhostNote
+                    ? "#444477"
+                    : engine.getStringColor(note.stringIdx);
 
         this.drawFilledNote(engine.ctx, note.x, note.y, nodeSize, color, this.getNoteLabel(note), state.alpha);
     },
@@ -717,6 +729,7 @@ const TabPlayerVariant = {
             const measure = this.parseMeasureLine(line);
             measure.barNumber = barNumber ?? currentSection.measures.length + 1;
             currentSection.measures.push(measure);
+            this.validateSectionTiming(currentSection, song.meter);
         });
 
         song.sections = song.sections.filter(section => section.measures.length > 0);
@@ -799,7 +812,7 @@ const TabPlayerVariant = {
             isMuted,
             durationObj,
             tieContinues,
-            isGraceNote: /\(.+\)/.test(fretPart)
+            isGhostNote: /\(.+\)/.test(fretPart)
         };
     },
 
@@ -830,4 +843,5 @@ const TabPlayerVariant = {
             isTriplet
         };
     }
+
 };

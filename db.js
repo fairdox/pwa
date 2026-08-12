@@ -217,6 +217,22 @@ async getTabByName(tabName) {
   }
 },
 
+async getTabList() {
+    try {
+        const { data, error } = await _supabase
+            .from('tablatures')
+            .select('id, name')
+            .order('name');
+
+        if (error) throw error;
+
+        return data || [];
+    } catch (err) {
+        console.error("Error loading tablature list:", err);
+        return [];
+    }
+},
+
   async saveSong(title, chordIds) {
     const user = await this.getUser();
     const { data, error } = await _supabase

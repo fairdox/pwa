@@ -161,7 +161,62 @@
         /* Helper class to remove the screen */
         .hidden {
             display: none !important;
-        }        
+        }
+
+        .song-picker {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            background: rgba(0, 0, 0, 0.65);
+        }
+
+        .song-picker.hidden {
+            display: none;
+        }
+
+        .song-picker-panel {
+            width: min(90vw, 500px);
+            max-height: 80vh;
+
+            display: flex;
+            flex-direction: column;
+
+            background: #202020;
+            border-radius: 12px;
+            padding: 12px;
+
+            color: white;
+        }
+
+        .song-picker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+
+            font-size: 1.2rem;
+            font-weight: bold;
+
+            padding-bottom: 10px;
+        }
+
+        .song-list {
+            overflow-y: auto;
+        }
+
+        .song-item {
+            padding: 12px;
+            border-bottom: 1px solid #444;
+            cursor: pointer;
+        }
+
+        .song-item:hover {
+            background: #333;
+        }
     </style>
 </head>
 <body>
@@ -193,6 +248,7 @@
         <button onclick="switchGame('grid')">Chord Grid</button>
         <button onclick="switchGame('tab')">Tabs</button>
         <hr>
+        <button id="songSelectButton">Select tablature</button>
         <button id="optionsBtn" onclick="toggleMenu(false);toggleMenuPage(true);">Options...</button>
     </div>
 </div>
@@ -213,8 +269,20 @@
     <br><br>
     <button onclick="clearFretStats()" style="background: #622; border-color: #844; font-size: 0.8em;">Clear All Progress</button>
     <p id="game-info-display">Calculating...</p>
-
+   
 </div>
+
+<div id="songPicker" class="song-picker hidden">
+    <div class="song-picker-panel">
+        <div class="song-picker-header">
+            <span>Select a song</span>
+            <button id="songPickerClose">✕</button>
+        </div>
+
+        <div id="songList" class="song-list"></div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="db.js?v=1.002"></script>
 <script src="variants.js?v=1.830"></script>
@@ -361,7 +429,6 @@ function clearFretStats() {
     }
 }
 
-
 const startScreen = document.getElementById('start-screen');
 const startButton = document.getElementById('start-button');
 startButton.addEventListener('click', async () => {
@@ -377,6 +444,31 @@ document.addEventListener('visibilitychange', async () => {
   if (game.wakeLock !== null && document.visibilityState === 'visible') {
     await game.requestWakeLock();
   }
+});
+
+const songPicker = document.getElementById("songPicker");
+const songList = document.getElementById("songList");
+
+document.getElementById("songSelectButton").addEventListener("click", async () => {
+    songPicker.classList.remove("hidden");
+    songList.innerHTML = "Loading...";
+    const songs = await dbService.getTabList();
+    songList.innerHTML = "";
+    for (const song of songs) {
+        const item = document.createElement("div");
+        item.className = "song-item";
+        item.textContent = song.name;
+        item.addEventListener("click", async () => {
+            songPicker.classList.add("hidden");
+            TabPlayerVariant.setTabName(song.name);
+            toggleMenu(false)
+        });
+        songList.appendChild(item);
+    }
+});
+
+document.getElementById("songPickerClose").addEventListener("click", () => {
+    songPicker.classList.add("hidden");
 });
 
 readyApp();

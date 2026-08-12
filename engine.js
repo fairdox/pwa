@@ -1,4 +1,4 @@
- const NOTES =       ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTES =       ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLAT_NAMES  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];    
 
 const StringBasePitches = [40, 45, 50, 55, 59, 64]; 
@@ -280,6 +280,10 @@ class FretboardEngine {
 
         const x = firstStringX + sIdx * spacingX;
 
+        if (fIdx === 0) {
+            const y = this.fretPositions[0] - 15; // Above the first fret wire
+            return { x, y };
+        }
         const y =
             (this.fretPositions[fIdx] +
             this.fretPositions[fIdx - 1]) / 2;

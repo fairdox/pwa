@@ -1,4 +1,3 @@
-
 const TabPlayerVariant = {
     label: "",
     statKey: "Ta",
@@ -21,10 +20,8 @@ const TabPlayerVariant = {
         this.currentSectionIdx = 0;
         this.currentMeasureIdx = 0;
         this.showAllMeasures = true;
-        this.loadTab(engine, "Do it again (sitar)").catch(err => {
-            console.error("Error loading tab:", err);
-            this.label = "Error loading tab.";
-        })
+        this.reload=true;
+        this.sectionStartTime = null;
     },
 
     initSettings(engine) {
@@ -37,6 +34,7 @@ const TabPlayerVariant = {
         this.buttons = [];
 
         restoreVariantState(this);
+        this.tabName=this.state.tabName;
         KeyboardHelper.addFunctionKeys(engine, this, false);
     },
 
@@ -67,7 +65,7 @@ const TabPlayerVariant = {
 
         let kobj=KeyboardHelper.addArrowKeys(engine,this,
                                     {x:pad, y: pos.y+40,
-                                     btnh: scale*40, btnw: scale*40, vgap: 60,
+                                     btnh: scale*40, btnw: scale*40, vgap: 40,
                                      fct1: ()=>  this.incrementSectionStart(engine,-1),
                                      fct2: ()=>  this.incrementSectionStart(engine,+1),
                                     });
@@ -75,25 +73,27 @@ const TabPlayerVariant = {
 
         kobj=KeyboardHelper.addArrowKeys(engine,this,
                                     {x:pad, y: pos.y+80,
-                                     btnh: scale*40, btnw: scale*20, vgap: 10,
+                                     btnh: scale*40, btnw: scale*20, vgap: 5,
                                      fct1: ()=>  this.incrementBarStart(engine,-1),
                                      fct2: ()=>  this.incrementBarStart(engine,+1),
                                     });
+        kobj.label.y += 10;
         this.barStartLabel = kobj.label;
 
         kobj=KeyboardHelper.addArrowKeys(engine,this,
                                     {x:w-pad-40, y: pos.y+40,
-                                     btnh: scale*40, btnw: scale*40, vgap: 60,
+                                     btnh: scale*40, btnw: scale*40, vgap: 40,
                                      fct1: ()=>  this.incrementSectionEnd(engine,-1),
                                      fct2: ()=>  this.incrementSectionEnd(engine,+1),
                                     });
         this.sectionEndLabel = kobj.label;
         kobj=KeyboardHelper.addArrowKeys(engine,this,
                                     {x:w-pad-40, y: pos.y+80,
-                                     btnh: scale*40, btnw: scale*20, vgap: 10,
+                                     btnh: scale*40, btnw: scale*20, vgap: 5,
                                      fct1: ()=>  this.incrementBarEnd(engine,-1),
                                      fct2: ()=>  this.incrementBarEnd(engine,+1),
                                     });
+        kobj.label.y += 10;
         this.barEndLabel = kobj.label;
         this.playBtn = KeyboardHelper.addFunctionButton(
             engine,
@@ -142,13 +142,13 @@ const TabPlayerVariant = {
         this.unlockAudio(engine);
     },
 
-    initGame(engine) {
+    initGame(engine, restart=true) {
         this.skipSavingTaps = true;
         this.skipHeatMap = true;
         this.isPlaying = true;
         this.pauseElapsedTime = 0;
-        this.sectionStartTime = null;
         this.lastPlayedSequence = -1;
+        if (restart) this.sectionStartTime = null;
 
         engine.history = [];
         engine.tappedKeys.clear();
@@ -163,6 +163,11 @@ const TabPlayerVariant = {
         }
     },
 
+    setTabName(tabName) {
+        this.tabName = tabName;
+        this.reload=true;
+    },
+
     incrementSectionStart(engine, inc) { // used for sections
         if (!inc) return;
 
@@ -175,7 +180,7 @@ const TabPlayerVariant = {
             this.getLastBarIndex(startSection)
         );
         this.normalizePlayRange();
-        this.initGame(engine);
+        this.initGame(engine,false);
     },
 
     incrementSectionEnd(engine, inc) { // used for sections
@@ -186,27 +191,27 @@ const TabPlayerVariant = {
         this.playRange.endSection = endSection;
         this.playRange.endBar = this.getLastBarIndex(endSection)
         this.normalizePlayRange();
-        this.initGame(engine);
+        this.initGame(engine,false);
     },
 
     incrementBarStart(engine, inc) { // used for measures
         if (!inc) return;
         this.moveRangeStart(inc);
         this.normalizePlayRange();
-        this.initGame(engine);
+        this.initGame(engine,false);
     },
     incrementBarEnd(engine, inc) { // used for measures
         if (!inc) return;
         this.moveRangeEnd(inc);
         this.normalizePlayRange();
-        this.initGame(engine);
+        this.initGame(engine,false);
     },
 
     incrementSpeed(engine, inc) {
         if (!inc) return;
         const newBpm = this.clamp(this.song.bpm * (1+inc), 20, 300);
         this.song.bpm = newBpm;
-        this.initGame(engine);
+        this.initGame(engine,false);
     },
 
     moveRangeStart(delta) {
@@ -398,6 +403,14 @@ const TabPlayerVariant = {
     },
 
     render(engine) {
+        if (this.reload && this.tabName) {
+            this.reload=false;
+            this.loadTab(engine, this.tabName).catch(err => {
+                console.error("Error loading tab:", err);
+                this.label = "Error loading tab.";
+            })
+        }
+
         KeyboardHelper.draw(engine, this.buttons);
 
         if (!this.playbackSteps?.length || !this.song?.sections?.length) return;
@@ -686,8 +699,8 @@ const TabPlayerVariant = {
         const endName = this.song.sections[range.endSection]?.name || "Unknown";
         this.sectionStartLabel.text = `${startName}`;
         this.sectionEndLabel.text = `${endName}`;
-        this.barStartLabel.text = `${range.startBar + 1}`;
-        this.barEndLabel.text = `${range.endBar + 1}`;
+        this.barStartLabel.text = `${this.song.sections[range.startSection]?.measures[range.startBar]?.barNumber || range.startBar + 1}`;
+        this.barEndLabel.text = `${this.song.sections[range.endSection]?.measures[range.endBar]?.barNumber ||  range.endBar + 1}`;
         ctx.fillText(
             `section ${this.song.sections[activeSectionIndex]?.name || "Unknown"} Bar: ${activeBarNumber}`,
             printX,
@@ -729,10 +742,11 @@ const TabPlayerVariant = {
             const measure = this.parseMeasureLine(line);
             measure.barNumber = barNumber ?? currentSection.measures.length + 1;
             currentSection.measures.push(measure);
-            this.validateSectionTiming(currentSection, song.meter);
+
         });
 
         song.sections = song.sections.filter(section => section.measures.length > 0);
+        song.sections.forEach(section => this.validateSectionTiming(section, song.meter));
         return song;
     },
 

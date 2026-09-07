@@ -1,7 +1,9 @@
 const ChordGridVariant = {
     label: "Chord Grid",
     skipHeatMap: true,
+    wideCanvas: true,
     init(engine) {
+        engine.resize();
         this.chordsLoaded = false;
         this.chordsToRender = null;
         this.sequentialChords = null;
@@ -9,11 +11,29 @@ const ChordGridVariant = {
         this.tapTimestamps = [];
         this.maxTapHistory = 8;
         this.newBpm=null;
+        const pad = engine.uiprop.sidePadding;
+        const scale = engine.uiprop.scale;
+        let pos = engine.getFretCoordinates(5, 1);
+
         const h = engine.canvas.height;
         this.gridHeight = h * 0.3;
         this.sheetHeight = h - this.gridHeight;
+        this.buttons = [];
+        this.editBtn = KeyboardHelper.addFunctionButton(
+            engine,
+            this,
+            "✎",
+            pos.x+20,
+            20,
+            "#484",
+            () => this.openEditor(),
+            null,
+            scale * 35,
+            scale * 35,
+            19
+        );
 
-        this.loadSong("Beggin");
+        this.loadSong("Hold on");
         this.initGame(engine);
     },
     initGame(engine) {
@@ -23,67 +43,85 @@ const ChordGridVariant = {
         if (!this.hold)
             setTimeout(() => {engine.requestWakeLock();}, 100);// prevent screen saver
     },
-    loadSong(songName="Manha de Carnaval") {
-        this.label=`Loading "${songName}"...`;
-        return dbService.getSongByName(songName).then(song => {
-            if (!song) {
-                this.label=`"${songName}" not found.`;
-            }else{
-                this.song = song;
-                this.loadChords(song);
+    loadSong(songName) {
+        this.label = `Loading "${songName}"...`;
+
+        return dbService.getSongByName(songName).then(data => {
+            if (!data) {
+                this.label = `"${songName}" not found.`;
+                return;
             }
+
+            if (data.text !== ""){
+                this.song = this.textToSong(data.text, data.id);
+            } else {
+                this.song = {
+                    id: data.id,
+                    name: data.name,
+                    bpm: data.bpm,
+                    rows: data.rows,
+                    cols: data.cols,
+                    grid: data.grid,
+                    rowNames: data.rowNames || [],
+                    chordDB: data.chordDB || data.chord_db || {}
+                };
+            }
+
+            return this.loadChords(this.song);
         });
     },
     loadChords(song) {
         this.label = `Loading chords...`;
-        // 1. Flatten the grid to find every chord entry
-        const allChords = song.grid.flat().flatMap(cell => cell.chords);
-        
-        // 2. Identify unique chords based on their name ('n')
-        // Using a Map to store { name: positions }
-        const uniqueChordNames = [...new Set(allChords.map(c => c.n))];
+        this.chordsLoaded = false;
+        this.chordsToRender = null;
+        this.sequentialChords = null;
+        this.lastRow = null;
+        this.lastChordIndx = -1;
 
-        // 3. Start the async loading process
-        Promise.all(uniqueChordNames.map(async (chordName) => {
-            // 1. Check local song-specific DB first
-            if (song.chordDB && song.chordDB[chordName]) {
-                return { 
-                    chordName: chordName, 
-                    positions: [song.chordDB[chordName]] // Wrap in array to match format
+        const allChords = song.grid.flat().flatMap(cell => cell.chords || []);
+        const uniqueNames = [...new Set(
+            allChords.map(chord => chord.n).filter(name => name !== '-')
+        )];
+
+        return Promise.all(uniqueNames.map(async chordName => {
+            if (song.chordDB?.[chordName]) {
+                return {
+                    chordName,
+                    positions: [song.chordDB[chordName]]
                 };
             }
-            // You'll need a way to split "Bm7" into "B" and "m7" 
-            // Assuming a helper like parseChordName(chordName) exists
-            const { note, suffix } = this.parseChordName(chordName); 
-            
+
+            const { note, suffix } = this.parseChordName(chordName);
             const positions = await dbService.getChordVoicings(note, suffix);
+
             return { chordName, positions };
         })).then(results => {
-            // 4. Create a lookup registry
-            const registry = new Map();
-            results.forEach(res => registry.set(res.chordName, res.positions));
+            const registry = new Map(
+                results.map(result => [result.chordName, result.positions])
+            );
 
-            // 5. Attach the loaded data back to the original song structure
-            // This modifies the song object in place so render() can access it
             let cumulChords = 0;
+
             song.grid.forEach(row => {
-                row.cumulChords = cumulChords; // Store cumulative count
+                row.cumulChords = cumulChords;
+
                 row.forEach(cell => {
-                    cell.chords.forEach(chordEntry => {
+                    (cell.chords || []).forEach(chord => {
                         cumulChords++;
-                        const posArray = registry.get(chordEntry.n) || [];
-                        // Assign the full array and the first variant as default
-                        chordEntry.positions = posArray;
+
+                        chord.positions = registry.get(chord.n) || [];
                     });
                 });
             });
 
-            // 6. Signal that data is ready
             this.chordsLoaded = true;
-            this.label = `${song.name}`;
+            this.label = song.name;
+
+            return song;
         }).catch(err => {
             this.label = `Error loading chords "${song.name}"`;
-            console.error("Error loading chords:", err);
+            console.error('Error loading chords:', err);
+            throw err;
         });
     },
 /**
@@ -116,8 +154,8 @@ getChordsToRender(song, activeRow = null) {
 
                 // Parse components and find the specific position variant
                 const { note, suffix } = this.parseChordName(chordName);
-                const variant = chordEntry.v || 0;
-                const position = chordEntry.positions ? chordEntry.positions[variant] : null;
+                const variant = chordEntry.v ?? 0;
+                const position = chordEntry.positions?.[variant] || null;
 
                 // Create the base item structure
                 const chordItem = {
@@ -193,7 +231,7 @@ getChordsToRender(song, activeRow = null) {
     getClickedRectangleTopPart(engine, cx, cy, topSectionRatio = 1.0) {
         const x=0; 
         const y=this.gridHeight;
-        const w=engine.canvas.width;
+        const w=engine.layoutWidth;
         const h=this.sheetHeight;
         const columns=3;
         const rows=3;
@@ -229,7 +267,10 @@ getChordsToRender(song, activeRow = null) {
     },
 
     onTap(engine, s, f, name, x, y) {
-        const w = engine.canvas.width;
+        const { btn, processed } = KeyboardHelper.checkClick(this.buttons, x, y);
+        if (btn && processed) return;
+
+        const w = engine.layoutWidth;
         const h = engine.canvas.height;
         const coords = {x: w-40, y: h-40}; // bottom right corner for BPM tap
         const now = Date.now();
@@ -277,161 +318,274 @@ getChordsToRender(song, activeRow = null) {
         }
     },
 
-render(engine) {
-    if (!this.chordsLoaded) return;
-    if (!this.chordsToRender ){
-        const data = this.getChordsToRender(this.song);
-        this.chordsToRender = data.unique;
-        this.sequentialChords = data.sequence;
-    }
-    const ctx = engine.ctx;
-    const w = engine.canvas.width;
-    const h = engine.canvas.height;
-    const msPerBeat = 60000 / (this.newBpm ? this.newBpm : this.song.bpm);
-    
-    // --- COUNT-IN CONFIGURATION ---
-    const countInBeats = 4;
-    const countInMS = countInBeats * msPerBeat;
-    
-    let now = this.hold ? this.holdStartTime : Date.now();
-    const beatsPerRow = this.song.cols * 4;
-    // The "songTime" is 0 exactly when the countdown ends.
-    // Before that, it is negative.
-    const songElapsed = now - (this.startTime + countInMS);
-    let totalBeatsElapsed = songElapsed / msPerBeat;
+    render(engine) {
+        if (!this.chordsLoaded) return;
 
-    // --- FIX: Wrap beats if we are restricting playback to a single row ---
-    if (this.fixedRow !== null && totalBeatsElapsed >= 0) {
-        totalBeatsElapsed = totalBeatsElapsed % beatsPerRow;
-    }
-
-    // --- GRID CALCULATIONS ---
-    // We clamp currentBarIndex to 0 during countdown so the grid shows the start
-    const currentBarIndex = totalBeatsElapsed < 0 
-        ? 0 
-        : Math.floor(totalBeatsElapsed / 4) % (this.song.rows * this.song.cols);
-    
-    const activeRow = Math.floor(currentBarIndex / this.song.cols);
-    const beatInBar = totalBeatsElapsed < 0 ? 0 : totalBeatsElapsed % 4;
-
-    // Layout
-    const windowSize = 2; 
-    const cellW = w / this.song.cols;
-    const cellH = this.gridHeight / windowSize; 
-
-    ctx.save();
-    
-    // 1. Draw Grid (Sliding logic)
-    ctx.beginPath();
-    ctx.rect(0, 0, w, this.gridHeight);
-    ctx.clip();
-
-    let activeChord = null;
-    let seqChordIndx = -1;
-    let activeChordSeqIndx = 0;
-    let chordsInBarCount = 0;
-    let startingChordIndx = 0;
-    let maxRowToRender = Math.min(this.song.rows, windowSize);
-    // vScroll is 0 during countdown, then starts moving
-    let vScroll = (this.song.rows <= windowSize || totalBeatsElapsed < 0) 
-        ? 0.0 
-        : totalBeatsElapsed / beatsPerRow;
-
-    let startingRow = 0;
-    if (this.fixedRow !== null) {
-        maxRowToRender = 2;
-        vScroll = 0.0;
-    }
-   
-    for (let i = startingRow; i <= maxRowToRender; i++) {
-        const virtualRow = Math.floor(vScroll) + i;
-        
-        // When fixedRow is active, actualRow always points to it, ignoring layout shifting
-        const actualRow = this.fixedRow === null 
-            ? ((virtualRow % this.song.rows) + this.song.rows) % this.song.rows
-            : this.fixedRow;
-
-        const drawY = (i - (vScroll % 1)) * cellH + cellH;
-        if (actualRow != this.lastRow ){
-            const data = this.getChordsToRender(this.song, actualRow);
+        if (!this.chordsToRender) {
+            const data = this.getChordsToRender(this.song);
             this.chordsToRender = data.unique;
-            this.lastRow = actualRow;
-        } 
-        
-        seqChordIndx = this.song.grid[actualRow].cumulChords - 1;
-        for (let c = 0; c < this.song.cols; c++) {
-            if (actualRow < 0 || actualRow >= this.song.rows) continue;
-            
-            const barData = this.song.grid[actualRow][c];
-            if (!barData) continue;
-            
-            // --- FIX HERE: Use trackingRow (or virtualRow) for the timeline index mapping ---
-            const targetRow = this.fixedRow === null ? actualRow : (virtualRow % this.song.rows);
-            const barGlobalIdx = (targetRow * this.song.cols) + c;
-            
-            let activeIdx = null;
-            // Only highlight bars if we have actually started the song
-            if (totalBeatsElapsed >= 0 && barGlobalIdx === currentBarIndex) {
-                let accum = 0;
-                chordsInBarCount = barData.chords.length;
-                startingChordIndx = seqChordIndx + 1;
-                for (let j = 0; j < barData.chords.length; j++) {
-                    seqChordIndx++;
-                    if (!barData.chords[j]) continue;
-                    accum += barData.chords[j].b;
-                    if (beatInBar < accum) {
-                        activeIdx = j;
-                        activeChordSeqIndx = seqChordIndx;
-                        break;
-                    }
+            this.sequentialChords = data.sequence;
+        }
+
+        const ctx = engine.ctx;
+        const w = engine.layoutWidth;
+        const h = engine.canvas.height;
+        const msPerBeat = 60000 / (this.newBpm ? this.newBpm : this.song.bpm);
+
+        // --- COUNT-IN CONFIGURATION ---
+        const countInBeats = 4;
+        const countInMS = countInBeats * msPerBeat;
+
+        let now = this.hold ? this.holdStartTime : Date.now();
+
+        // Actual number of beats in each parsed row
+        const rowBeats = this.song.grid.map(row => row.length * 4);
+        const totalSongBeats = rowBeats.reduce((sum, beats) => sum + beats, 0);
+
+        // The "songTime" is 0 exactly when the countdown ends.
+        // Before that, it is negative.
+        const songElapsed = now - (this.startTime + countInMS);
+        let totalBeatsElapsed = songElapsed / msPerBeat;
+
+        // --- RESTART AT END OF SONG ---
+        if (this.fixedRow === null &&
+            totalBeatsElapsed >= totalSongBeats) {
+            this.initGame(engine);
+            return;
+        }
+
+        // --- FIX: Wrap beats if we are restricting playback to a single row ---
+        if (this.fixedRow !== null && totalBeatsElapsed >= 0) {
+            const rowDuration = rowBeats[this.fixedRow] || 4;
+            totalBeatsElapsed = totalBeatsElapsed % rowDuration;
+        }
+
+        // --- FIND CURRENT ROW AND BEAT WITHIN ROW ---
+        let currentBarIndex = 0;
+        let activeRow = 0;
+        let beatInBar = 0;
+        let beatInRow = totalBeatsElapsed;
+
+        if (totalBeatsElapsed >= 0) {
+            for (let r = 0; r < rowBeats.length; r++) {
+                if (beatInRow < rowBeats[r]) {
+                    activeRow = r;
+                    break;
                 }
-            } else {
-                seqChordIndx += barData.chords.length;
+
+                beatInRow -= rowBeats[r];
+                activeRow = r + 1;
             }
 
-            this.drawBar(ctx, c * cellW, drawY, cellW, cellH, barData, activeIdx);
-            
-            // Row Labels (Keep actualRow if you want to see the frozen loop number)
-            ctx.fillStyle = "rgba(120, 120, 255, 0.7)";
-            ctx.font = "35px monospace";
-            ctx.fillText(`${actualRow + 1}`, 15, drawY + 35);
-        }
-    }
-    
-    if (activeChordSeqIndx!=this.lastChordIndx){
-        this.lastChordIndx=activeChordSeqIndx;
-        //engine.playChord(this.sequentialChords[activeChordSeqIndx].position);
-    }
+            currentBarIndex =
+                this.song.grid
+                    .slice(0, activeRow)
+                    .reduce((sum, row) => sum + row.length, 0)
+                + Math.floor(beatInRow / 4);
 
-    ctx.restore();
-
-    // 2. Draw Chord Sheet
-    if (this.chordsToRender) {
-        if (this.hold) {
-            drawSongSheet(ctx, 0, this.gridHeight, w, this.sheetHeight,
-                          this.chordsToRender, 3, 3, null);
-        } else {
-            drawSongSheet(ctx, 0, this.gridHeight, w, this.sheetHeight,
-                          this.sequentialChords, 2, 2, activeChordSeqIndx,
-                          startingChordIndx, chordsInBarCount); 
+            beatInBar = beatInRow % 4;
         }
-    }
-    this.drawBeatIndicator(ctx, w-18, h-18, (totalBeatsElapsed % 1 + 1) % 1);
-    // 3. --- COUNTDOWN OVERLAY ---
-    if (totalBeatsElapsed < 0 && !this.hold) {
-        const count = Math.ceil(Math.abs(totalBeatsElapsed)); // 4, 3, 2, 1
-        const progressInBeat = 1 - (Math.abs(totalBeatsElapsed) % 1);
-        
+
+        // Layout
+        const windowSize = 2;
+        const cellW = w / this.song.cols;
+        const cellH = this.gridHeight / windowSize;
+
         ctx.save();
-        ctx.fillStyle = `rgba(0, 255, 0, ${0.8 * progressInBeat})`; // Pulse green
-        ctx.font = "bold 120px sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        // Center of the screen
-        ctx.fillText(count, w / 2, h / 2);
+
+        // 1. Draw Grid (Sliding logic)
+        ctx.beginPath();
+        ctx.rect(0, 0, w, this.gridHeight);
+        ctx.clip();
+
+        let activeChord = null;
+        let seqChordIndx = -1;
+        let activeChordSeqIndx = 0;
+        let chordsInBarCount = 0;
+        let startingChordIndx = 0;
+
+        let maxRowToRender = Math.min(this.song.grid.length, windowSize);
+
+        // vScroll is 0 during countdown, then starts moving
+        let vScroll = (this.song.grid.length <= windowSize ||
+                    totalBeatsElapsed < 0)
+            ? 0.0
+            : activeRow +
+            (rowBeats[activeRow] > 0
+                ? beatInRow / rowBeats[activeRow]
+                : 0);
+
+        let startingRow = 0;
+
+        if (this.fixedRow !== null) {
+            maxRowToRender = 2;
+            vScroll = 0.0;
+            activeRow = this.fixedRow;
+        }
+
+        for (let i = startingRow; i <= maxRowToRender; i++) {
+            const virtualRow = Math.floor(vScroll) + i;
+
+            const actualRow = this.fixedRow === null
+                ? ((virtualRow % this.song.grid.length) +
+                this.song.grid.length) % this.song.grid.length
+                : this.fixedRow;
+
+            const drawY = (i - (vScroll % 1)) * cellH + cellH;
+
+            if (actualRow != this.lastRow) {
+                const data = this.getChordsToRender(this.song, actualRow);
+
+                // Keep the whole-song chord list intact.
+                // Only update the row tracking.
+                this.lastRow = actualRow;
+            }
+
+            const row = this.song.grid[actualRow];
+
+            if (!row) continue;
+
+            // Global sequential chord index at start of this row
+            seqChordIndx = row.cumulChords - 1;
+
+            for (let c = 0; c < this.song.cols; c++) {
+                if (actualRow < 0 || actualRow >= this.song.grid.length) continue;
+
+                const barData = row[c];
+
+                // Empty display cell
+                if (!barData) continue;
+
+                // Global bar index is based on actual parsed row lengths
+                let barGlobalIdx = 0;
+
+                for (let r = 0; r < actualRow; r++) {
+                    barGlobalIdx += this.song.grid[r].length;
+                }
+
+                barGlobalIdx += c;
+
+                let activeIdx = null;
+
+                // Only highlight bars if we have actually started the song
+                if (totalBeatsElapsed >= 0 &&
+                    barGlobalIdx === currentBarIndex) {
+
+                    let accum = 0;
+
+                    chordsInBarCount = barData.chords.length;
+                    startingChordIndx = seqChordIndx + 1;
+
+                    for (let j = 0; j < barData.chords.length; j++) {
+                        seqChordIndx++;
+
+                        if (!barData.chords[j]) continue;
+
+                        accum += barData.chords[j].b;
+
+                        if (beatInBar < accum) {
+                            activeIdx = j;
+                            activeChordSeqIndx = seqChordIndx;
+                            break;
+                        }
+                    }
+                } else {
+                    seqChordIndx += barData.chords.length;
+                }
+
+                this.drawBar(
+                    ctx,
+                    c * cellW,
+                    drawY,
+                    cellW,
+                    cellH,
+                    barData,
+                    activeIdx
+                );
+
+                // --- ROW NAME ---
+                const rowName = this.song.rowNames?.[actualRow] || '';
+                if (rowName) {
+                    ctx.fillStyle = "rgba(120, 120, 255, 0.7)";
+                    ctx.font = "20px monospace";
+                    ctx.fillText(rowName, 25, drawY + 35);
+                }
+            }
+        }
+
+        if (activeChordSeqIndx != this.lastChordIndx) {
+            this.lastChordIndx = activeChordSeqIndx;
+            //engine.playChord(this.sequentialChords[activeChordSeqIndx].position);
+        }
+
         ctx.restore();
-    }
-},
+
+        // 2. Draw Chord Sheet
+        if (this.chordsToRender) {
+            if (this.hold) {
+                drawSongSheet(
+                    ctx,
+                    0,
+                    this.gridHeight,
+                    w,
+                    this.sheetHeight,
+                    this.chordsToRender,
+                    3,
+                    3,
+                    null
+                );
+            } else {
+                drawSongSheet(
+                    ctx,
+                    0,
+                    this.gridHeight,
+                    w,
+                    this.sheetHeight,
+                    this.sequentialChords,
+                    2,
+                    2,
+                    activeChordSeqIndx,
+                    startingChordIndx,
+                    chordsInBarCount
+                );
+            }
+        }
+
+        this.drawBeatIndicator(
+            ctx,
+            w - 18,
+            h - 18,
+            (totalBeatsElapsed % 1 + 1) % 1
+        );
+
+        // 3. --- COUNTDOWN OVERLAY ---
+        if (totalBeatsElapsed < 0 && !this.hold) {
+            const count = Math.ceil(Math.abs(totalBeatsElapsed));
+            const progressInBeat =
+                1 - (Math.abs(totalBeatsElapsed) % 1);
+
+            ctx.save();
+
+            ctx.fillStyle =
+                `rgba(0, 255, 0, ${0.8 * progressInBeat})`;
+
+            ctx.font = "bold 120px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            ctx.fillText(
+                count,
+                w / 2,
+                h / 2
+            );
+
+            ctx.restore();
+        }
+
+        if (this.hold) {
+            KeyboardHelper.draw(engine, this.buttons);
+        }
+    },
 
     drawBeatIndicator(ctx, x, y, opacity) {
         ctx.save();
@@ -543,5 +697,347 @@ render(engine) {
             polygon: poly, 
             text: { x: textX, y: textY } 
         };
+    },
+    textToSong(text, id = null) {
+        const song = {
+            id,
+            name: '',
+            bpm: 120,
+            rows: 0,
+            cols: 0,
+            grid: [],
+            rowNames: [],
+            chordDB: {}
+        };
+
+        let section = '';
+
+        for (const rawLine of text.split(/\r?\n/)) {
+            const line = rawLine.trim();
+
+            if (!line || line.startsWith('//'))
+                continue;
+
+            const meta = line.match(/^(name|bpm|gridsize)\s*:\s*(.*)$/i);
+
+            if (meta) {
+                const key = meta[1].toLowerCase();
+                const value = meta[2].trim();
+
+                if (key === 'name') {
+                    song.name = value;
+                } else if (key === 'bpm') {
+                    song.bpm = Number(value);
+                } else if (key === 'gridsize') {
+                    const match = value.match(/^(\d+)\s*x\s*(\d+)$/i);
+                    if (!match)
+                        throw new Error(`Invalid gridsize: ${value}`);
+
+                    song.rows = Number(match[1]);
+                    song.cols = Number(match[2]);
+                }
+
+                continue;
+            }
+
+            if (/^grid\s*:/i.test(line)) {
+                section = 'grid';
+                continue;
+            }
+
+            if (/^chords\s*:/i.test(line)) {
+                section = 'chords';
+                continue;
+            }
+
+            if (section === 'grid') {
+                const firstBar = line.indexOf('|');
+
+                if (firstBar < 0)
+                    throw new Error(`Grid row has no "|": ${line}`);
+
+                song.rowNames.push(line.slice(0, firstBar).trim());
+                song.grid.push(
+                    this.parseChordGridRow(line.slice(firstBar))
+                );
+            } else if (section === 'chords') {
+                this.parseChordOverride(line, song.chordDB);
+            }
+        }
+
+        if (!song.rows)
+            song.rows = song.grid.length;
+
+        if (!song.cols && song.grid.length)
+            song.cols = Math.max(...song.grid.map(row => row.length));
+
+        if (song.grid.length !== song.rows)
+            console.warn(
+                `ChordGrid: gridsize specifies ${song.rows} rows, ` +
+                `but ${song.grid.length} rows were found.`
+            );
+
+        song.grid.forEach((row, i) => {
+            if (row.length !== song.cols)
+                console.warn(
+                    `ChordGrid: row ${i + 1} has ${row.length} columns, ` +
+                    `expected ${song.cols}.`
+                );
+        });
+
+        return song;
+    },
+
+    resolveChordDurations(chords) {
+        if (!chords.length) return;
+
+        const unspecified = chords.filter(chord => chord.b == null);
+
+        const explicitDuration = chords
+            .filter(chord => chord.b != null)
+            .reduce((sum, chord) => sum + chord.b, 0);
+
+        let remaining = 4 - explicitDuration;
+
+        if (unspecified.length === 0) {
+            if (explicitDuration !== 4) {
+                console.warn(
+                    `Measure duration is ${explicitDuration}, expected 4 beats`
+                );
+            }
+            return;
+        }
+
+        const duration = remaining / unspecified.length;
+
+        if (duration <= 0) {
+            throw new Error(
+                'Chord durations exceed 4 beats in a measure'
+            );
+        }
+
+        unspecified.forEach(chord => {
+            chord.b = duration;
+        });
+    },
+    parseChordGridRow(line) {
+        return line
+            .split('|')
+            .map(s => s.trim())
+            .filter(Boolean)
+            .map(measureText => {
+
+                const chords = [];
+
+                for (const token of measureText.split(/\s+/)) {
+                    let s = token;
+                    let beats = null;
+                    let variant;
+
+                    // Explicit duration: *2, *1.5, etc.
+                    const beatMatch = s.match(/\*(\d+(?:\.\d+)?)$/);
+
+                    if (beatMatch) {
+                        beats = Number(beatMatch[1]);
+                        s = s.slice(0, beatMatch.index);
+                    }
+
+                    // Variant: @1, @2, etc.
+                    const variantMatch = s.match(/@(\d+)$/);
+
+                    if (variantMatch) {
+                        variant = Number(variantMatch[1]);
+                        s = s.slice(0, variantMatch.index);
+                    }
+
+                    if (!s) {
+                        throw new Error(`Invalid chord: ${token}`);
+                    }
+
+                    const chord = { b: beats, n: s };
+
+                    if (variant !== undefined) {
+                        chord.v = variant;
+                    }
+
+                    chords.push(chord);
+                }
+
+                // Resolve missing durations.
+                const unspecified = chords.filter(chord => chord.b == null);
+
+                const explicitDuration = chords
+                    .filter(chord => chord.b != null)
+                    .reduce((sum, chord) => sum + chord.b, 0);
+
+                if (unspecified.length) {
+                    const remaining = 4 - explicitDuration;
+
+                    if (remaining <= 0) {
+                        throw new Error(
+                            `Chord durations exceed 4 beats: ${measureText}`
+                        );
+                    }
+
+                    const duration = remaining / unspecified.length;
+
+                    unspecified.forEach(chord => {
+                        chord.b = duration;
+                    });
+                } else if (explicitDuration !== 4) {
+                    console.warn(
+                        `Measure has ${explicitDuration} beats instead of 4: ${measureText}`
+                    );
+                }
+
+                return { chords };
+            });
+    },
+    parseChordOverride(line, chordDB) {
+        const match = line.match(
+            /^(.+?)\s*=\s*([^;]+?)(?:\s*;\s*(.*))?$/
+        );
+
+        if (!match)
+            throw new Error(`Invalid chord definition: ${line}`);
+
+        const name = match[1].trim();
+        const frets = match[2].trim().split(',').map(Number);
+
+        if (frets.some(f => !Number.isInteger(f)))
+            throw new Error(`Invalid frets for chord "${name}"`);
+
+        const chord = {
+            frets,
+            barres: [],
+            baseFret: 1
+        };
+
+        if (match[3]) {
+            for (const option of match[3].split(';')) {
+                const [key, value] = option.split('=').map(s => s.trim());
+
+                if (key === 'baseFret') {
+                    chord.baseFret = Number(value);
+                } else if (key === 'numFrets') {
+                    chord.numFrets = Number(value);
+                } else if (key === 'barres') {
+                    chord.barres = value.split(',').map(barre => {
+                        const m = barre.match(/^(\d+):(\d+)-(\d+)$/);
+
+                        if (!m)
+                            throw new Error(`Invalid barre: ${barre}`);
+
+                        return {
+                            fret: Number(m[1]),
+                            fromString: Number(m[2]),
+                            toString: Number(m[3])
+                        };
+                    });
+                }
+            }
+        }
+
+        chordDB[name] = chord;
+    },
+
+    songToText(song) {
+        const lines = [
+            `name: ${song.name || ''}`,
+            `bpm: ${song.bpm ?? 120}`,
+            `gridsize: ${song.rows}x${song.cols}`,
+            '',
+            'grid:'
+        ];
+
+        song.grid.forEach((row, rowIndex) => {
+            const rowName = song.rowNames?.[rowIndex] || '';
+
+            const measures = row.map(measure => {
+                const chords = (measure.chords || []).map(chord => {
+                    let token = chord.n;
+
+                    if (chord.v !== undefined)
+                        token += `@${chord.v}`;
+
+                    if (chord.b !== 1)
+                        token += `*${chord.b}`;
+
+                    return token;
+                });
+
+                return `| ${chords.join(' ')} `;
+            });
+
+            lines.push(
+                `${rowName.padEnd(8)}${measures.join('|')}|`
+            );
+        });
+
+        lines.push('', 'chords:');
+
+        for (const [name, chord] of Object.entries(song.chordDB || {})) {
+            const options = [];
+
+            if (chord.baseFret !== undefined && chord.baseFret !== 1)
+                options.push(`baseFret=${chord.baseFret}`);
+
+            if (chord.numFrets !== undefined)
+                options.push(`numFrets=${chord.numFrets}`);
+
+            if (chord.barres?.length) {
+                options.push(
+                    `barres=${chord.barres.map(b =>
+                        `${b.fret}:${b.fromString}-${b.toString}`
+                    ).join(',')}`
+                );
+            }
+
+            lines.push(
+                `${name} = ${chord.frets.join(',')}` +
+                (options.length ? ` ; ${options.join(' ; ')}` : '')
+            );
+        }
+
+        return lines.join('\n');
+    },
+
+    openEditor() {
+        const editor = document.getElementById('tabEditorPanel');
+        const textarea = document.getElementById('tabEditorText');
+
+        textarea.value = this.songToText(this.song);
+        document.getElementById('tabEditorTitle').textContent =
+            `Edit: ${this.song.name || ''}`;
+
+        editor.classList.remove('hidden');
+        textarea.focus();
+    },
+
+    async applyEditor() {
+        const textarea = document.getElementById('tabEditorText');
+
+        try {
+            const song = this.textToSong(textarea.value, this.song.id);
+
+            // Replace only after the text has parsed successfully.
+            this.song = song;
+
+            // Load all chord diagrams for the new grid.
+            await this.loadChords(song);
+
+            this.initGame(this.engine);
+            this.hold=false;
+
+        } catch (err) {
+            console.error('Error applying ChordGrid:', err);
+            this.label = `Error: ${err.message}`;
+        }
+    },
+    cancelEditor() {
+        document
+            .getElementById("tabEditorPanel")
+            .classList.add("hidden");
     }
-}
+
+};

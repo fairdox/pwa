@@ -153,7 +153,7 @@ async getSongByName(songName) {
   try {
     const { data, error } = await _supabase
       .from('songs')
-      .select('id, name, bpm, rows, cols, grid, chord_db')
+      .select('id, name, bpm, rows, cols, grid, chord_db, text')
       .eq('name', songName)
       .single(); // Use .single() since song names are typically unique in a library
 
@@ -172,7 +172,8 @@ async getSongByName(songName) {
         rows: data.rows,
         cols: data.cols,
         grid: data.grid,
-        chordDB: data.chord_db || {}
+        chordDB: data.chord_db || {},
+        text: data.text 
       };
 
     return song;
@@ -230,6 +231,21 @@ async getTabList() {
     } catch (err) {
         console.error("Error loading tablature list:", err);
         return [];
+    }
+},
+
+async saveTab(id, tablature) {
+
+    const { error } = await _supabase
+        .from("tablatures")
+        .update({
+            tabs: tablature
+        })
+        .eq("id", id);
+
+    if (error) {
+        console.error("Error saving tablature:", error);
+        return;
     }
 },
 

@@ -14,6 +14,7 @@ const TabPlayerVariant = {
 
     init(engine) {
         engine.resize();
+        this.engine=engine
         this.initSettings(engine);
         this.initButtons(engine);
 
@@ -22,6 +23,7 @@ const TabPlayerVariant = {
         this.showAllMeasures = true;
         this.reload=true;
         this.sectionStartTime = null;
+        this.tablature=null;
     },
 
     initSettings(engine) {
@@ -38,13 +40,23 @@ const TabPlayerVariant = {
         KeyboardHelper.addFunctionKeys(engine, this, false);
     },
 
-    async loadTab(engine, tabName) {
-        this.label=`Loading "${tabName}"...`;
-        const tab = await dbService.getTabByName(tabName);
-        if (!tab) {
-            this.label = `"${tabName}" not found.`;
-        } else {
-            this.song = this.parseVTab(tab.tabs);
+    async loadTab(engine, tabName, providedTablature=null) {
+        if (providedTablature){
+            this.tablature=providedTablature;
+        }else{
+            this.label=`Loading "${tabName}"...`;
+            const tab = await dbService.getTabByName(tabName);
+            if (!tab) {
+                this.label = `"${tabName}" not found.`;
+                this.tablature = null;
+                this.tabId = null;
+            }else{
+                this.tablature = tab.tabs;
+                this.tabId = tab.id;
+            }
+        }
+        if (this.tablature) {
+            this.song = this.parseVTab(this.tablature);
             this.playRange = this.createDefaultPlayRange(this.song);
             this.label = `Loaded "${tabName}".`;
             this.tabName = tabName;
@@ -54,7 +66,9 @@ const TabPlayerVariant = {
                 this.playRange = this.state.playRangeOverride || this.playRange;
                 this.song.bpm = this.state.bpmOverride || this.song.bpm;
             }
-            this.initGame(engine);}
+            this.initGame(engine);
+        }
+        
     },
 
     initButtons(engine) {
@@ -95,6 +109,22 @@ const TabPlayerVariant = {
                                     });
         kobj.label.y += 10;
         this.barEndLabel = kobj.label;
+
+        this.editBtn = KeyboardHelper.addFunctionButton(
+            engine,
+            this,
+            "✎",
+            pad,
+            pos.y-40,
+            "#484",
+            () => this.openEditor(),
+            null,
+            scale * 35,
+            scale * 35,
+            19
+        );
+
+
         this.playBtn = KeyboardHelper.addFunctionButton(
             engine,
             this,
@@ -486,7 +516,7 @@ const TabPlayerVariant = {
             .filter(note => !note.isMuted && !note.isRest && !note.isGhostNote)
             .sort((a, b) => b.stringIdx - a.stringIdx)
             .forEach((note, i) => {
-                engine.playString(note.stringIdx, note.fret, i * this.DEFAULTS.strumDelay);
+                engine.playString(note.stringIdx, note.fret, i * this.DEFAULTS.strumDelay, note.bend || 0);
             });
     },
 
@@ -701,8 +731,11 @@ const TabPlayerVariant = {
         this.sectionEndLabel.text = `${endName}`;
         this.barStartLabel.text = `${this.song.sections[range.startSection]?.measures[range.startBar]?.barNumber || range.startBar + 1}`;
         this.barEndLabel.text = `${this.song.sections[range.endSection]?.measures[range.endBar]?.barNumber ||  range.endBar + 1}`;
+        const nbBars = this.getAbsoluteBarIndex(range.endSection, range.endBar) - this.getAbsoluteBarIndex(range.startSection, range.startBar) + 1;
+        const totalBars = this.getAbsoluteBarIndex(this.song.sections.length - 1, this.getLastBarIndex(this.song.sections.length - 1)) + 1; 
+        const coveragePct= Math.round((nbBars / totalBars * 100));
         ctx.fillText(
-            `section ${this.song.sections[activeSectionIndex]?.name || "Unknown"} Bar: ${activeBarNumber}`,
+            `${this.song.sections[activeSectionIndex]?.name || "Unknown"} Bar: ${activeBarNumber} covered ${nbBars}/${totalBars} ${coveragePct}% `,
             printX,
             barY
         );
@@ -798,23 +831,58 @@ const TabPlayerVariant = {
 
         if (parts.length < 3) return null;
 
-        const duration = this.parseDurationToken(parts.pop());
-        noteTokens[lastIndex] = parts.join(".");
+        const lastPart = parts.pop();
+
+        // duration optionally followed by bend:
+        // 4
+        // 4d
+        // 8b1/2
+        // 8db1
+        // 16tb1/4
+        const match = lastPart.match(
+            /^(\d+(?:dd|d)?t?)(b(?:1\/4|1\/2|1))?$/
+        );
+
+        if (!match) return null;
+
+        const duration = this.parseDurationToken(match[1]);
+        const bendSuffix = match[2] || "";
+
+        // Remove duration, but keep bend attached to the fret.
+        // "2.8.8db1" -> "2.8b1"
+        // "2.7.4b1/2" -> "2.7b1/2"
+        noteTokens[lastIndex] =
+            parts.join(".") + bendSuffix;
+
         return duration;
     },
 
     parseNoteToken(noteToken, sharedDuration, tieContinues) {
         const parts = noteToken.split(".");
         const stringPart = parts[0];
-        const fretPart = parts[1] || "";
-        const durationObj = sharedDuration || this.parseDurationToken(parts[2]);
+        let fretPart = parts[1] || "";
+
+        const durationObj =
+            sharedDuration || this.parseDurationToken(parts[2]);
 
         if (stringPart === "0" || (fretPart === "" && stringPart !== "0")) {
             return {
                 isRest: true,
-                stringIdx: stringPart === "0" ? null : 6 - parseInt(stringPart, 10),
+                stringIdx: stringPart === "0"
+                    ? null
+                    : 6 - parseInt(stringPart, 10),
                 durationObj
             };
+        }
+
+        // Extract bend from fret part.
+        let bend = 0;
+
+        const bendMatch = fretPart.match(/b(1\/4|1\/2|1)$/);
+
+        if (bendMatch) {
+            bend = this.parseBend(bendMatch[1]);
+            fretPart = fretPart.slice(0, bendMatch.index);
         }
 
         const cleanFret = fretPart.replace(/[()]/g, "");
@@ -826,7 +894,8 @@ const TabPlayerVariant = {
             isMuted,
             durationObj,
             tieContinues,
-            isGhostNote: /\(.+\)/.test(fretPart)
+            isGhostNote: /\(.+\)/.test(fretPart),
+            bend
         };
     },
 
@@ -856,6 +925,59 @@ const TabPlayerVariant = {
             doubleDotted,
             isTriplet
         };
+    },
+
+    parseBend(value) {
+        if (!value) return 0;
+
+        switch (value) {
+            case "1/4": return 0.5;
+            case "1/2": return 1;
+            case "1":   return 2;
+            default:
+                console.warn("Unknown bend:", value);
+                return 0;
+        }
+    },
+
+    openEditor() {
+        const editor = document.getElementById("tabEditorPanel");
+        const textarea = document.getElementById("tabEditorText");
+
+        textarea.value = this.tablature || "";
+
+        document.getElementById("tabEditorTitle").textContent =
+            `Edit: ${this.song.name || ""}`;
+
+        editor.classList.remove("hidden");
+
+        textarea.focus();
+    },
+
+    applyEditor() {
+        const text =
+            document.getElementById("tabEditorText").value;
+
+        this.loadTab(this.engine, this.tabName, text).catch(err => {
+            console.error("Error loading tab:", err);
+            this.label = "Error loading tab.";
+        });
+
+//        document
+//            .getElementById("tabEditorPanel")
+//            .classList.add("hidden");
+    },
+
+    cancelEditor() {
+        // reload from database, discarding any changes made in the editor
+        this.loadTab(this.engine, this.tabName, null).catch(err => {
+            console.error("Error loading tab:", err);
+            this.label = "Error loading tab.";
+        });        
+        document
+            .getElementById("tabEditorPanel")
+            .classList.add("hidden");
     }
+
 
 };

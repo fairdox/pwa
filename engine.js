@@ -36,8 +36,7 @@ class AudioController {
     }
 
 
-    // Updated playNote method:
-    playNote(pitch, delay = 0) {
+    playNote(pitch, delay = 0, bend = 0) {
         if (!this.enabled) return;
 
         const freq = 440 * Math.pow(2, (pitch - 69) / 12);
@@ -49,12 +48,26 @@ class AudioController {
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(freq, startTime);
 
-        // Envelope adjusted for the specific start time
+        // Bend
+        if (bend) {
+            const bendCents = bend * 100;
+
+            osc.detune.setValueAtTime(0, startTime);
+
+            // Bend reaches target pitch after about 150 ms
+            osc.detune.linearRampToValueAtTime(
+                bendCents,
+                startTime + 0.15
+            );
+        }
+
         gain.gain.setValueAtTime(0.3, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, startTime + 1.5);
+        gain.gain.exponentialRampToValueAtTime(
+            0.01,
+            startTime + 1.5
+        );
 
         osc.connect(gain);
-        // Connect to masterGain instead of destination
         gain.connect(this.masterGain);
 
         osc.start(startTime);
@@ -1604,9 +1617,9 @@ class FretboardEngine {
         });
     }
 
-    playString(sIdx, fret=0, delay =0) {
+    playString(sIdx, fret=0, delay =0, bend=0) {
         const pitch = StringBasePitches[sIdx] + fret;
-        this.audio.playNote(pitch, delay);
+        this.audio.playNote(pitch, delay, bend);
     }
 
     async  releaseWakeLock() {

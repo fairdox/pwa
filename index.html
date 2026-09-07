@@ -148,6 +148,12 @@
         .option-row label { font-size: 1.2em; cursor: pointer; }
         .option-row input { transform: scale(1.6); margin-right: 15px; vertical-align: middle; }
 
+        #mainLayout {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }        
+
         #app {
             position: fixed;
             top: 50%;
@@ -156,6 +162,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            z-index: 1;
         }
 
         /* Helper class to remove the screen */
@@ -217,6 +224,81 @@
         .song-item:hover {
             background: #333;
         }
+
+        .tab-editor {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 10000;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tab-editor.hidden {
+            display: none;
+        }
+
+        #tabEditorPanel {
+            position: fixed;
+            top: 0;
+            right: 0;
+
+            width: 50vw;
+            height: 100vh;
+
+            box-sizing: border-box;
+
+            display: flex;
+            flex-direction: column;
+
+            padding: 10px;
+
+            background: #181818;
+            border-left: 1px solid #555;
+
+            z-index: 1000;
+        }
+
+        #tabEditorPanel.hidden {
+            display: none;
+        }
+
+        #tabEditorText {
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+
+            box-sizing: border-box;
+
+            resize: none;
+
+            font-family: Consolas, monospace;
+            font-size: 15px;
+            line-height: 1.4;
+
+            background: #101010;
+            color: #eee;
+
+            padding: 10px;
+        }
+
+        .tab-editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+
+            margin-bottom: 8px;
+        }
+
+        .tab-editor-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+
+            padding-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -226,7 +308,21 @@
 </div>
 
 <div id="app">
-    <canvas id="fretboard" ></canvas>
+    <canvas id="fretboard"></canvas>
+</div>
+
+<div id="tabEditorPanel" class="hidden">
+    <div class="tab-editor-header">
+        <span id="tabEditorTitle">Tablature Editor</span>
+        <button id="tabEditorClose">×</button>
+    </div>
+
+    <textarea id="tabEditorText" spellcheck="false"></textarea>
+
+    <div class="tab-editor-buttons">
+        <button id="tabEditorApply">Apply</button>
+        <button id="tabEditorCancel">Cancel</button>
+    </div>
 </div>
 
 <button id="menuTrigger" onclick="toggleMenu(true)">☰</button>
@@ -471,6 +567,16 @@ document.getElementById("songPickerClose").addEventListener("click", () => {
     songPicker.classList.add("hidden");
 });
 
+document.getElementById("tabEditorApply")
+    .addEventListener("click", () => {
+        game.variant.applyEditor();
+    });
+
+document.getElementById("tabEditorCancel")
+    .addEventListener("click", () => {
+        game.variant.cancelEditor();
+    });
+    
 readyApp();
 
 // to start a server in command line : python -m http.server 8000

@@ -25,8 +25,10 @@ function drawChordDiagram(ctx, note, chord, position, highlight, x, y, w, h) {
 
     if (!position) return;
     const numStrings = position.frets.length;
-    const displayFrets = position.numFrets || 3;
-    const startingFret = position.baseFret || 1;
+    const maxFret = Math.max(...position.frets.filter(f => f > 0));
+    const fretCount = Math.max(3, maxFret);
+    const displayFrets = position.numFrets || fretCount;
+    const startingFret = position.capo  ? 1: position.baseFret || 1;
 
     const stringGap = chartW / (numStrings - 1);
     const fretGap = chartH / displayFrets;
@@ -55,11 +57,11 @@ function drawChordDiagram(ctx, note, chord, position, highlight, x, y, w, h) {
     }
 
     // 3. Draw Starting Fret Number
-    if (startingFret > 1) {
-        ctx.fillStyle = '#AAA';
-        ctx.font = `${fretGap * 0.5}px sans-serif`;
+    if (position.baseFret > 1) {
+        ctx.fillStyle = '#d32626';
+        ctx.font = `${fretGap * 0.45}px sans-serif`;
         ctx.textAlign = 'right';
-        ctx.fillText(startingFret, x + sideMargin - 5, y + topMargin + (fretGap * 0.75));
+        ctx.fillText(position.baseFret, x + sideMargin , y + topMargin + (fretGap * 0.25));
     }
 
     // 4. Draw Positions (Fingers)
@@ -74,7 +76,7 @@ function drawChordDiagram(ctx, note, chord, position, highlight, x, y, w, h) {
             drawMarker(ctx, currX, y + topMargin - 10, 'O', fretGap * 0.4, color1);
         } else {
             // Pressed note
-            const relativeFret = fret - startingFret;
+            const relativeFret = fret - 1;
             if (relativeFret >= 0 && relativeFret < displayFrets) {
                 const dotY = y + topMargin + (relativeFret * fretGap) + (fretGap / 2);
                 ctx.beginPath();

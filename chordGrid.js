@@ -1,3 +1,7 @@
+HOLD_SHEET_COLS = 4;
+HOLD_SHEET_ROWS = 4;
+PLAY_SHEET_COLS = 2;
+PLAY_SHEET_ROWS = 2;
 const ChordGridVariant = {
     label: "Chord Grid",
     skipHeatMap: true,
@@ -233,8 +237,8 @@ getChordsToRender(song, activeRow = null) {
         const y=this.gridHeight;
         const w=engine.layoutWidth;
         const h=this.sheetHeight;
-        const columns=3;
-        const rows=3;
+        const columns= this.hold ? HOLD_SHEET_COLS : PLAY_SHEET_COLS;
+        const rows= this.hold ? HOLD_SHEET_ROWS : PLAY_SHEET_ROWS;
 
         // Check if the click is outside the bounding box of the entire canvas area
         if (cx < x || cx > x + w || cy < y || cy > y + h) {
@@ -295,10 +299,10 @@ getChordsToRender(song, activeRow = null) {
         }else{
             const rectIndex = this.getClickedRectangleTopPart(engine,x, y);
             if (rectIndex !== null && this.hold) {
-            if (!engine.audioUnlocked) {
-                engine.audio.resume(); // Unlocks audio on first click
-                engine.audioUnlocked = true;
-            }
+                if (!engine.audioUnlocked) {
+                    engine.audio.resume(); // Unlocks audio on first click
+                    engine.audioUnlocked = true;
+                }
                 engine.playChord(this.chordsToRender[rectIndex].position);
             }else if (y<h/4){ // top fourth for hold toggle
                 this.hold = !this.hold;
@@ -505,8 +509,10 @@ getChordsToRender(song, activeRow = null) {
 
                 // --- ROW NAME ---
                 const rowName = this.song.rowNames?.[actualRow] || '';
+                ctx.fillStyle = "rgba(120, 120, 255, 0.7)";
+                ctx.font = "15px monospace";
+                ctx.fillText(`${actualRow + 1}`, 10, drawY + 15);
                 if (rowName) {
-                    ctx.fillStyle = "rgba(120, 120, 255, 0.7)";
                     ctx.font = "20px monospace";
                     ctx.fillText(rowName, 25, drawY + 35);
                 }
@@ -530,8 +536,8 @@ getChordsToRender(song, activeRow = null) {
                     w,
                     this.sheetHeight,
                     this.chordsToRender,
-                    3,
-                    3,
+                    HOLD_SHEET_COLS,
+                    HOLD_SHEET_ROWS,
                     null
                 );
             } else {
@@ -542,8 +548,8 @@ getChordsToRender(song, activeRow = null) {
                     w,
                     this.sheetHeight,
                     this.sequentialChords,
-                    2,
-                    2,
+                    PLAY_SHEET_COLS,
+                    PLAY_SHEET_ROWS,
                     activeChordSeqIndx,
                     startingChordIndx,
                     chordsInBarCount
@@ -902,10 +908,13 @@ getChordsToRender(song, activeRow = null) {
             throw new Error(`Invalid chord definition: ${line}`);
 
         const name = match[1].trim();
-        const frets = match[2].trim().split(',').map(Number);
+        let frets = match[2].trim().split(',').map(Number);
 
         if (frets.some(f => !Number.isInteger(f)))
             throw new Error(`Invalid frets for chord "${name}"`);
+
+        let baseFret;
+        let baseFretSpecified = false;
 
         const chord = {
             frets,
@@ -918,7 +927,8 @@ getChordsToRender(song, activeRow = null) {
                 const [key, value] = option.split('=').map(s => s.trim());
 
                 if (key === 'baseFret') {
-                    chord.baseFret = Number(value);
+                    baseFret = Number(value);
+                    baseFretSpecified = true;
                 } else if (key === 'numFrets') {
                     chord.numFrets = Number(value);
                 } else if (key === 'barres') {
@@ -938,9 +948,24 @@ getChordsToRender(song, activeRow = null) {
             }
         }
 
+        if (baseFretSpecified) {
+            chord.baseFret = baseFret;
+        } else {
+            const playedFrets = frets.filter(f => f > 0);
+
+            if (playedFrets.length) {
+                chord.baseFret = Math.min(...playedFrets);
+
+                frets = frets.map(f =>
+                    f > 0 ? f - chord.baseFret + 1 : f
+                );
+
+                chord.frets = frets;
+            }
+        }
+
         chordDB[name] = chord;
     },
-
     songToText(song) {
         const lines = [
             `name: ${song.name || ''}`,

@@ -528,6 +528,26 @@ const TabPlayerVariant = {
             step.notes.forEach(note => {
                 if (note.isTieContinuation) return;
 
+                // Show fixed ghost positions before the measure's notes slide,
+                // and keep each ghost underneath its sliding note until it arrives.
+                const ghostLead = 0.25;
+                const ghostStart = note.barStartTime - previewWindow - ghostLead;
+                const showMeasureGhost =
+                    this.previewMode === "slide" &&
+                    elapsedTime >= ghostStart &&
+                    elapsedTime < note.startTime;
+                const timeToNote = note.startTime - elapsedTime;
+                const alpha = 0.65 * (1 - Math.max(0, Math.min(1, timeToNote / (note.startTime - ghostStart))));
+
+                if (showMeasureGhost) {
+                    this.drawCircleNote(
+                        engine,
+                        note,
+                        { alpha, preview: true, mode: "ghost" },
+                        nodeSize * 1.25
+                    );
+                }
+
                 const state = this.getNoteDisplayState(
                     note,
                     elapsedTime,

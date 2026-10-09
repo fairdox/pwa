@@ -455,8 +455,8 @@ const TabPlayerVariant = {
             this.playCurrentStepIfNeeded(engine, playbackState.currentSequence);
         }
         this.drawNotes(engine, this.playbackSteps, elapsedTime, playbackState, nodeSize);
-        this.drawMetronome(engine, elapsedTime, playbackState);
-        this.drawBarLabel(engine, playbackState.activeSectionIndex, playbackState.activeBarNumber);
+        //this.drawMetronome(engine, elapsedTime, playbackState);
+        this.drawBarLabel(engine, playbackState.activeSectionIndex, playbackState.activeBarNumber, playbackState.activeBarIndex);
     },
 
     getLeadSeconds() {
@@ -548,7 +548,7 @@ const TabPlayerVariant = {
                     );
                 }
 
-                const state = this.getNoteDisplayState(
+                                const state = this.getNoteDisplayState(
                     note,
                     elapsedTime,
                     playbackState.currentSequence,
@@ -734,11 +734,13 @@ const TabPlayerVariant = {
         ctx.fillText(`Count: ${countOutput}`, printX, countY);
     },
 
-    drawBarLabel(engine, activeSectionIndex, activeBarNumber) {
+    drawBarLabel(engine, activeSectionIndex, activeBarNumber, activeBarIndex) {
         const ctx = engine.ctx;
         const printX = engine.getStringX(0);
         const barY = engine.fretPositions[0] - 35;
+        const commentY = engine.fretPositions[0] - 20 ;
         const range = this.getPlaybackRange(this.song);
+        const activeMeasure = this.song.sections[activeSectionIndex]?.measures[activeBarIndex];
 
         ctx.fillStyle = "#888888";
         ctx.font = "bold 14px Arial";
@@ -754,6 +756,14 @@ const TabPlayerVariant = {
         const nbBars = this.getAbsoluteBarIndex(range.endSection, range.endBar) - this.getAbsoluteBarIndex(range.startSection, range.startBar) + 1;
         const totalBars = this.getAbsoluteBarIndex(this.song.sections.length - 1, this.getLastBarIndex(this.song.sections.length - 1)) + 1; 
         const coveragePct= Math.round((nbBars / totalBars * 100));
+
+        // Measure comment is displayed on the third line above the fretboard.
+        if (activeMeasure?.comment) {
+            ctx.fillStyle = "#BBBBBB";
+            ctx.fillText(activeMeasure.comment, printX, commentY);
+        }
+
+        ctx.fillStyle = "#888888";
         ctx.fillText(
             `${this.song.sections[activeSectionIndex]?.name || "Unknown"} Bar: ${activeBarNumber} covered ${nbBars}/${totalBars} ${coveragePct}% `,
             printX,
@@ -774,7 +784,7 @@ const TabPlayerVariant = {
         let currentSection = null;
 
         text.split("\n").forEach(rawLine => {
-            const { content, barNumber } = this.stripCommentAndReadBarNumber(rawLine);
+            const { content, barNumber, measureComment } = this.stripCommentAndReadBarNumber(rawLine);
             const line = content.trim();
 
             if (!line) return;
@@ -794,6 +804,7 @@ const TabPlayerVariant = {
 
             const measure = this.parseMeasureLine(line);
             measure.barNumber = barNumber ?? currentSection.measures.length + 1;
+            measure.comment = measureComment;
             currentSection.measures.push(measure);
 
         });
@@ -805,16 +816,19 @@ const TabPlayerVariant = {
 
     stripCommentAndReadBarNumber(rawLine) {
         const hashIndex = rawLine.indexOf("#");
-        if (hashIndex < 0) return { content: rawLine, barNumber: null };
+        if (hashIndex < 0) {
+            return { content: rawLine, barNumber: null, measureComment: "" };
+        }
 
         const content = rawLine.slice(0, hashIndex);
-        const comment = rawLine.slice(hashIndex + 1).trim();
-        const match = comment.match(/^(\d+)/);
+        const rawComment = rawLine.slice(hashIndex + 1).trim();
+        const match = rawComment.match(/^(\d+)\b\s*/);
+        const barNumber = match ? parseInt(match[1], 10) : null;
+        const measureComment = match
+            ? rawComment.slice(match[0].length).trim()
+            : rawComment;
 
-        return {
-            content,
-            barNumber: match ? parseInt(match[1], 10) : null
-        };
+        return { content, barNumber, measureComment };
     },
 
     parseMetadataLine(song, line) {

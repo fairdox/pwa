@@ -455,8 +455,8 @@ const TabPlayerVariant = {
             this.playCurrentStepIfNeeded(engine, playbackState.currentSequence);
         }
         this.drawNotes(engine, this.playbackSteps, elapsedTime, playbackState, nodeSize);
-        //this.drawMetronome(engine, elapsedTime, playbackState);
-        this.drawBarLabel(engine, playbackState.activeSectionIndex, playbackState.activeBarNumber, playbackState.activeBarIndex);
+        this.drawMetronome(engine, elapsedTime, playbackState);
+        this.drawBarLabel(engine, playbackState.activeSectionIndex, playbackState.activeBarNumber);
     },
 
     getLeadSeconds() {
@@ -525,30 +525,13 @@ const TabPlayerVariant = {
         const previewWindow = (this.slideLeadBeats || this.fallLeadBeats || this.DEFAULTS.leadBeats) * (60 / this.song.bpm);
 
         playbackSteps.forEach(step => {
+            // Draw the chord label first so the fretboard notes appear over it.
+            this.drawStepComment(engine, step, elapsedTime, playbackState, previewWindow);
+
             step.notes.forEach(note => {
                 if (note.isTieContinuation) return;
 
-                // Show fixed ghost positions before the measure's notes slide,
-                // and keep each ghost underneath its sliding note until it arrives.
-                const ghostLead = 0.25;
-                const ghostStart = note.barStartTime - previewWindow - ghostLead;
-                const showMeasureGhost =
-                    this.previewMode === "slide" &&
-                    elapsedTime >= ghostStart &&
-                    elapsedTime < note.startTime;
-                const timeToNote = note.startTime - elapsedTime;
-                const alpha = 0.65 * (1 - Math.max(0, Math.min(1, timeToNote / (note.startTime - ghostStart))));
-
-                if (showMeasureGhost) {
-                    this.drawCircleNote(
-                        engine,
-                        note,
-                        { alpha, preview: true, mode: "ghost" },
-                        nodeSize * 1.25
-                    );
-                }
-
-                                const state = this.getNoteDisplayState(
+                const state = this.getNoteDisplayState(
                     note,
                     elapsedTime,
                     playbackState.currentSequence,
@@ -564,6 +547,44 @@ const TabPlayerVariant = {
         });
 
         ctx.globalAlpha = 1;
+    },
+
+    drawStepComment(engine, step, elapsedTime, playbackState, previewWindow) {
+        const comment = step.notes.find(note => note.comment)?.comment;
+        if (!comment) return;
+
+        const visibleNotes = step.notes.filter(note => {
+            if (note.isRest || note.isTieContinuation) return false;
+            const state = this.getNoteDisplayState(
+                note,
+                elapsedTime,
+                playbackState.currentSequence,
+                this.DEFAULTS.lookAheadCount,
+                this.previewMode,
+                previewWindow
+            );
+            return state.alpha > 0;
+        });
+        if (!visibleNotes.length) return;
+
+        // Prefer fretted notes; open strings can pull the label too far from the chord.
+        let positionedNotes = visibleNotes.filter(note =>
+            typeof note.fret === "number" && note.fret > 0
+        );
+        if (!positionedNotes.length) positionedNotes = visibleNotes;
+
+        const x = positionedNotes.reduce((sum, note) => sum + note.x, 0) / positionedNotes.length;
+        const y = positionedNotes.reduce((sum, note) => sum + note.y, 0) / positionedNotes.length;
+
+        const ctx = engine.ctx;
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "48px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(comment, x, y);
+        ctx.restore();
     },
 
     getNoteDisplayState(note, elapsedTime, currentSequence, lookAheadCount, previewMode = "ghost", previewWindow = 3.0) {
@@ -734,13 +755,11 @@ const TabPlayerVariant = {
         ctx.fillText(`Count: ${countOutput}`, printX, countY);
     },
 
-    drawBarLabel(engine, activeSectionIndex, activeBarNumber, activeBarIndex) {
+    drawBarLabel(engine, activeSectionIndex, activeBarNumber) {
         const ctx = engine.ctx;
         const printX = engine.getStringX(0);
         const barY = engine.fretPositions[0] - 35;
-        const commentY = engine.fretPositions[0] - 20 ;
         const range = this.getPlaybackRange(this.song);
-        const activeMeasure = this.song.sections[activeSectionIndex]?.measures[activeBarIndex];
 
         ctx.fillStyle = "#888888";
         ctx.font = "bold 14px Arial";
@@ -756,14 +775,6 @@ const TabPlayerVariant = {
         const nbBars = this.getAbsoluteBarIndex(range.endSection, range.endBar) - this.getAbsoluteBarIndex(range.startSection, range.startBar) + 1;
         const totalBars = this.getAbsoluteBarIndex(this.song.sections.length - 1, this.getLastBarIndex(this.song.sections.length - 1)) + 1; 
         const coveragePct= Math.round((nbBars / totalBars * 100));
-
-        // Measure comment is displayed on the third line above the fretboard.
-        if (activeMeasure?.comment) {
-            ctx.fillStyle = "#BBBBBB";
-            ctx.fillText(activeMeasure.comment, printX, commentY);
-        }
-
-        ctx.fillStyle = "#888888";
         ctx.fillText(
             `${this.song.sections[activeSectionIndex]?.name || "Unknown"} Bar: ${activeBarNumber} covered ${nbBars}/${totalBars} ${coveragePct}% `,
             printX,
@@ -784,7 +795,7 @@ const TabPlayerVariant = {
         let currentSection = null;
 
         text.split("\n").forEach(rawLine => {
-            const { content, barNumber, measureComment } = this.stripCommentAndReadBarNumber(rawLine);
+            const { content, barNumber } = this.stripCommentAndReadBarNumber(rawLine);
             const line = content.trim();
 
             if (!line) return;
@@ -804,7 +815,6 @@ const TabPlayerVariant = {
 
             const measure = this.parseMeasureLine(line);
             measure.barNumber = barNumber ?? currentSection.measures.length + 1;
-            measure.comment = measureComment;
             currentSection.measures.push(measure);
 
         });
@@ -816,19 +826,16 @@ const TabPlayerVariant = {
 
     stripCommentAndReadBarNumber(rawLine) {
         const hashIndex = rawLine.indexOf("#");
-        if (hashIndex < 0) {
-            return { content: rawLine, barNumber: null, measureComment: "" };
-        }
+        if (hashIndex < 0) return { content: rawLine, barNumber: null };
 
         const content = rawLine.slice(0, hashIndex);
-        const rawComment = rawLine.slice(hashIndex + 1).trim();
-        const match = rawComment.match(/^(\d+)\b\s*/);
-        const barNumber = match ? parseInt(match[1], 10) : null;
-        const measureComment = match
-            ? rawComment.slice(match[0].length).trim()
-            : rawComment;
+        const comment = rawLine.slice(hashIndex + 1).trim();
+        const match = comment.match(/^(\d+)/);
 
-        return { content, barNumber, measureComment };
+        return {
+            content,
+            barNumber: match ? parseInt(match[1], 10) : null
+        };
     },
 
     parseMetadataLine(song, line) {
@@ -851,12 +858,20 @@ const TabPlayerVariant = {
     },
 
     parseStepToken(token) {
-        const cleanToken = token.trim().replaceAll("~", "");
+        let cleanToken = token.trim().replaceAll("~", "");
         const tieContinues = token.includes("~");
+
+        // Optional chord/note comment follows the note data, e.g. "1.3,2.5,3.4,4.5.2 Em".
+        const commentMatch = cleanToken.match(/\s+([A-Za-z][A-Za-z0-9#b+\-/]*)\s*$/);
+        const comment = commentMatch ? commentMatch[1] : "";
+        if (commentMatch) cleanToken = cleanToken.slice(0, commentMatch.index).trim();
+
         const noteTokens = cleanToken.split(",").map(s => s.trim()).filter(Boolean);
         const sharedDuration = this.extractSharedDuration(noteTokens);
+        const notes = noteTokens.map(noteToken => this.parseNoteToken(noteToken, sharedDuration, tieContinues));
 
-        return noteTokens.map(noteToken => this.parseNoteToken(noteToken, sharedDuration, tieContinues));
+        if (comment) notes.forEach(note => { note.comment = comment; });
+        return notes;
     },
 
     extractSharedDuration(noteTokens) {

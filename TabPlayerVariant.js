@@ -531,6 +531,26 @@ const TabPlayerVariant = {
             step.notes.forEach(note => {
                 if (note.isTieContinuation) return;
 
+                // Show fixed ghost positions before the measure's notes slide,
+                // and keep each ghost underneath its sliding note until it arrives.
+                const ghostLead = 0.25;
+                const ghostStart = note.barStartTime - previewWindow - ghostLead;
+                const showMeasureGhost =
+                    this.previewMode === "slide" &&
+                    elapsedTime >= ghostStart &&
+                    elapsedTime < note.startTime;
+                const timeToNote = note.startTime - elapsedTime;
+                const alpha = 0.65 * (1 - Math.max(0, Math.min(1, timeToNote / (note.startTime - ghostStart))));
+
+                if (showMeasureGhost) {
+                    this.drawCircleNote(
+                        engine,
+                        note,
+                        { alpha, preview: true, mode: "ghost" },
+                        nodeSize * 1.25
+                    );
+                }
+
                 const state = this.getNoteDisplayState(
                     note,
                     elapsedTime,
@@ -825,7 +845,8 @@ const TabPlayerVariant = {
     },
 
     stripCommentAndReadBarNumber(rawLine) {
-        const hashIndex = rawLine.indexOf("#");
+        const match1 = rawLine.match(/\s+#\s*(\d+)\b/);
+        const hashIndex = match1 ? match1.index + match1[0].indexOf("#") : -1;
         if (hashIndex < 0) return { content: rawLine, barNumber: null };
 
         const content = rawLine.slice(0, hashIndex);
@@ -862,7 +883,7 @@ const TabPlayerVariant = {
         const tieContinues = token.includes("~");
 
         // Optional chord/note comment follows the note data, e.g. "1.3,2.5,3.4,4.5.2 Em".
-        const commentMatch = cleanToken.match(/\s+([A-Za-z][A-Za-z0-9#b+\-/]*)\s*$/);
+        const commentMatch = cleanToken.match(/\s+([^\s].*?)\s*$/);
         const comment = commentMatch ? commentMatch[1] : "";
         if (commentMatch) cleanToken = cleanToken.slice(0, commentMatch.index).trim();
 

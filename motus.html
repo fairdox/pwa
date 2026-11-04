@@ -7,80 +7,98 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
-        :root {
-            --bg: #121213;
-            --tile-border: #3a3a3c;
-            --correct: #538d4e;
-            --present: #b59f3b;
-            --absent: #3a3a3c;
-            --key-bg: #818384;
-            --cursor: #3399ff;
+                :root {
+            --bg: #10151b;
+            --panel: #171d24;
+            --tile-border: #293747;
+            --correct: #5aa36f;
+            --present: #c9ad55;
+            --absent: #263241;
+            --key-bg: #10151b;
+            --key-border: #465a70;
+            --cursor: #3b82f6;
         }
-
-        body { 
-            background: var(--bg); color: white; font-family: -apple-system, sans-serif;
+        * { box-sizing: border-box; }
+        body {
+            background: var(--bg); color: #f7f8fa;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             margin: 0; padding: 0; display: flex; flex-direction: column;
-            height: 100dvh; overflow: hidden; box-sizing: border-box;
+            height: 100dvh; overflow: hidden;
         }
-
-        header { 
-            height: 50px; display: flex; align-items: center; font-weight: bold; 
-            font-size: 22px; border-bottom: 1px solid var(--tile-border); 
-            width: 100%; justify-content: center; flex-shrink: 0;
-            padding-top: env(safe-area-inset-top);
+        header {
+            height: 52px; display: flex; align-items: center;
+            justify-content: flex-start; padding: env(safe-area-inset-top) 0 0 16%;
+            font-weight: 500; font-size: 22px; background: var(--panel);
+            border-bottom: 1px solid var(--tile-border);
+            width: 100%; flex-shrink: 0;
         }
-
         #grid-container {
-            flex-grow: 1; display: flex; flex-direction: column-reverse; 
+            flex-grow: 1; min-height: 0; display: flex; flex-direction: column-reverse;
             justify-content: center; align-items: center;
         }
-
-        #grid { display: flex; flex-direction: column-reverse; gap: 6px; padding: 10px; }
-        .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-
-        .tile { 
-            width: 54px; height: 54px; border: 2px solid var(--tile-border); 
-            border-radius: 50%; display: flex; justify-content: center; 
-            align-items: center; font-size: 26px; font-weight: bold; 
-            text-transform: uppercase; box-sizing: border-box; transition: background 0.2s;
+        #grid { display: flex; flex-direction: column-reverse; gap: 5px; padding: 8px; }
+        .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+        .tile {
+            width: clamp(39px, 13.3vw, 56px); height: clamp(39px, 13.3vw, 56px);
+            border: 2px solid var(--tile-border); border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-size: clamp(23px, 6.2vw, 26px); font-weight: 600;
+            text-transform: uppercase; transition: background 0.2s;
         }
-
         .tile.active-cursor { border-color: var(--cursor); border-width: 3px; }
-
         .correct { background: var(--correct) !important; border-color: var(--correct) !important; }
         .present { background: var(--present) !important; border-color: var(--present) !important; }
         .absent { background: var(--absent) !important; border-color: var(--absent) !important; }
-
-        #keyboard { width: 100%; padding-bottom: env(safe-area-inset-bottom, 20px); flex-shrink: 0; }
-        .kb-row { display: flex; justify-content: center; gap: 4px; margin-bottom: 6px; padding: 0 4px; }
-        
-        .key { 
-            background: var(--key-bg); border-radius: 4px; padding: 16px 0; 
-            flex: 1; max-width: 34px; cursor: pointer; font-weight: bold; 
-            font-size: 14px; text-align: center; -webkit-tap-highlight-color: transparent;
+        #keyboard { width: 100%; padding: 0 10px env(safe-area-inset-bottom, 12px); flex-shrink: 0; }
+        .kb-row { display: flex; justify-content: center; gap: 5px; margin-bottom: 6px; padding: 0 2px; }
+        .key {
+            background: var(--key-bg); border: 2px solid var(--key-border);
+            border-radius: 5px; padding: 13px 0; flex: 1; max-width: 34px;
+            cursor: pointer; font-weight: 600; font-size: 17px; color: #f7f8fa;
+            text-align: center; -webkit-tap-highlight-color: transparent;
         }
-        .key-wide { max-width: 55px; flex: 1.5; }
-
+        .key.correct { background: var(--correct) !important; border-color: var(--correct) !important; }
+        .key.present { background: var(--present) !important; border-color: var(--present) !important; }
+        .key.absent { background: var(--absent) !important; border-color: var(--absent) !important; }
+        .key-wide { max-width: 52px; flex: 1.6; }
         .invalid { animation: shake 0.5s; }
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             25% { transform: translateX(-6px); }
             75% { transform: translateX(6px); }
         }
-
         #new-game-btn {
-            position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
-            background: var(--correct); color: white; border: none; padding: 10px 20px; 
-            border-radius: 20px; font-weight: bold; display: none; z-index: 10;
+            position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
+            background: #111; color: white; border: 2px solid #465a70;
+            padding: 9px 20px; border-radius: 8px; font-weight: 600; font-size: 18px;
+            display: none; z-index: 10;
         }
-    </style>
+        /*
+        @media (max-height: 700px) {
+            .tile { width: 38px; height: 38px; font-size: 22px; }
+            #grid { gap: 3px; padding: 4px; }
+            .key { padding: 9px 0; }
+            .kb-row { margin-bottom: 4px; }
+        }*/
+        #timer { font-size: 18px; font-weight: 400; letter-spacing: -1px; }
+        #message {
+            position: absolute; top: 74px; left: 50%; transform: translateX(-50%);
+            width: min(72vw, 680px); padding: 0; border: 2px solid transparent;
+            border-radius: 12px; background: #111; color: #f7f8fa; text-align: center;
+            font-size: clamp(18px, 4.3vw, 30px); font-weight: 600;
+            letter-spacing: 0.3px; line-height: 1.25; z-index: 10; display: none;
+        }
+        #message.visible { display: block; padding: 16px 12px; border-color: var(--key-border); }
+        #message.error { border-color: #c9ad55; }
+        #new-game-btn { top: 160px; border-radius: 8px; font-size: 18px; }
+</style>
 </head>
 <body>
-    <header>LE MOT</header>
+    <header><span id="timer">00:00</span></header>
+    <div id="message" role="status" aria-live="polite"></div>
     <button id="new-game-btn" onclick="resetGame()">NOUVEAU MOT</button>
     <div id="grid-container"><div id="grid"></div></div>
     <div id="keyboard"></div>
-
 <script src="motus.js"></script>
 <script src="validation.js"></script>
 <script>
@@ -92,19 +110,22 @@
     let currentGuessArr = ["", "", "", "", ""];
     let cursorIdx = 0;
     const maxGuesses = 6;
-
     const grid = document.getElementById('grid');
     const keyboard = document.getElementById('keyboard');
     const newGameBtn = document.getElementById('new-game-btn');
-
+    const timerEl = document.getElementById('timer');
+    const messageEl = document.getElementById('message');
+    let timerStartedAt = 0;
+    let elapsedSeconds = 0;
+    let timerInterval = null;
     function init() {
         // 1. Check if the files even loaded
         if (typeof VALIDATION_LIST === 'undefined') {
-            alert("CRITICAL ERROR: validation.js is not loaded or VALIDATION_LIST is undefined.");
+            showMessage("Erreur : validation.js n’est pas chargé.", "error");
             return; 
         }
         if (typeof DICTIONARY === 'undefined') {
-            alert("CRITICAL ERROR: motus.js is not loaded or DICTIONARY is undefined.");
+            showMessage("Erreur : motus.js n’est pas chargé.", "error");
             return;
         }
         validPool = new Set(VALIDATION_LIST);
@@ -125,27 +146,28 @@
         }
         resetGame();
     }
-
     function moveCursor(rowIdx, colIdx) {
         if (rowIdx !== guesses.length) return;
         cursorIdx = colIdx;
         updateView();
     }
-
     function resetGame() {
+        clearInterval(timerInterval);
+        elapsedSeconds = 0;
+        timerStartedAt = Date.now();
+        timerEl.textContent = "00:00";
+        timerInterval = setInterval(updateTimer, 1000);
+        hideMessage();
 
-        //alert(" Pool Size: " + pool.length);
         do {
             targetWord = pool[Math.floor(Math.random() * pool.length)];
         } while (targetWord.length!=5); // avoid empty or invalid strings
-        
-        //alert(" Target: [" + targetWord + "]");
+
         guesses = [];
         letterStatus = {};
         currentGuessArr = ["", "", "", "", ""];
         cursorIdx = 0;
         newGameBtn.style.display = 'none';
-        
         for(let i=0; i<maxGuesses; i++) {
             for(let j=0; j<5; j++) {
                 const t = document.getElementById(`tile-${i}-${j}`);
@@ -155,7 +177,6 @@
         renderKeyboard();
         updateView();
     }
-
     function renderKeyboard() {
         keyboard.innerHTML = '';
         const layout = ["QWERTYUIOP", "ASDFGHJKL", "⌫ZXCVBNM↵"];
@@ -166,14 +187,13 @@
                 const key = document.createElement('div');
                 const status = letterStatus[char] || "";
                 key.className = `key ${status}` + (char === '⌫' || char === '↵' ? ' key-wide' : '');
-                key.textContent = char === '⌫' ? 'DEL' : (char === '↵' ? 'ENT' : char);
+                key.textContent = char
                 key.onclick = () => handleInput(char);
                 row.appendChild(key);
             });
             keyboard.appendChild(row);
         });
     }
-
     function handleInput(char) {
         if (guesses.length >= maxGuesses) return;
         if (char === '↵') submitGuess();
@@ -182,12 +202,12 @@
             currentGuessArr[cursorIdx] = "";
             updateView();
         } else if (/^[A-Z]$/.test(char)) {
+            hideMessage();
             currentGuessArr[cursorIdx] = char;
             if (cursorIdx < 4) cursorIdx++;
             updateView();
         }
     }
-
     function updateView() {
         const rowIdx = guesses.length;
         document.getElementById(`row-${rowIdx}`).classList.remove('invalid');
@@ -197,53 +217,60 @@
             tile.classList.toggle('active-cursor', i === cursorIdx && guesses.length < maxGuesses);
         }
     }
-
     function submitGuess() {
         const guess = currentGuessArr.join("");
-
-   
         if (guess.length !== 5) return;
-
-
         if (!validPool.has(guess)) {
             document.getElementById(`row-${guesses.length}`).classList.add('invalid');
             return;
         }
-            //alert("validPool Guess: [" + guess + "] | Target: [" + targetWord + "]");
-            //alert("Validation Pool Size: " + validPool.size);
+
         const rowIdx = guesses.length;
         const result = checkGuess(guess, targetWord);
-        
         for (let i = 0; i < 5; i++) {
             const char = guess[i];
             const status = result[i];
             const tile = document.getElementById(`tile-${rowIdx}-${i}`);
             tile.classList.remove('active-cursor');
             tile.classList.add(status);
-
             if (letterStatus[char] !== 'correct') {
                 if (status === 'correct' || (status === 'present' && letterStatus[char] !== 'present') || !letterStatus[char]) {
                     letterStatus[char] = status;
                 }
             }
         }
-
         renderKeyboard();
         guesses.push(guess);
         currentGuessArr = ["", "", "", "", ""];
         cursorIdx = 0;
-
         if (guess === targetWord) {
-            setTimeout(() => { alert("Bravo !"); newGameBtn.style.display = 'block'; }, 250);
+            setTimeout(() => { stopTimer(); showMessage("Bien joué, vous l’avez trouvé !"); newGameBtn.style.display = 'block'; }, 250);
         } else if (guesses.length === maxGuesses) {
-            setTimeout(() => { alert("Le mot était : " + targetWord); newGameBtn.style.display = 'block'; }, 250);
+            setTimeout(() => { stopTimer(); showMessage("Le mot était : " + targetWord); newGameBtn.style.display = 'block'; }, 250);
         } else {
             updateView();
         }
     }
-
+    function updateTimer() {
+        elapsedSeconds = Math.floor((Date.now() - timerStartedAt) / 1000);
+        const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
+        const secs = String(elapsedSeconds % 60).padStart(2, "0");
+        timerEl.textContent = `${mins}:${secs}`;
+    }
+    function stopTimer() {
+        updateTimer();
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    function showMessage(text, type = "") {
+        messageEl.textContent = text;
+        messageEl.className = "visible" + (type ? " " + type : "");
+    }
+    function hideMessage() {
+        messageEl.textContent = "";
+        messageEl.className = "";
+    }
     function checkGuess(guess, target) {
-
         let results = Array(5).fill("absent");
         let targetArr = [...target];
         let guessArr = [...guess];
@@ -262,7 +289,6 @@
         }
         return results;
     }
-
     init();
 </script>
 </body>

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paroles par sections</title>
+<style>
+  :root {
+    --bg: #000; --fg: #fff; --muted: #8a8a8a; --line: #2a2a2a; --hl: #2c2c2c;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  :root.clair { --bg: #fff; --fg: #000; --muted: #777; --line: #ddd; --hl: #e4e4e4; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    display: flex; flex-direction: column; overflow: hidden;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+  #barre {
+    flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 4px 10px; font: 12px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--muted); border-bottom: 1px solid var(--line);
+    opacity: .6; transition: opacity .2s;
+  }
+  #barre:hover, #barre:focus-within { opacity: 1; }
+  #barre button, #barre label.fichier {
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 4px; padding: 2px 8px; font: inherit; cursor: pointer; min-width: 26px;
+  }
+  #barre button:hover, #barre label.fichier:hover { color: var(--fg); border-color: var(--muted); }
+  #barre button:focus-visible { outline: 2px solid var(--muted); outline-offset: 1px; }
+  #barre input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  label.fichier:focus-within { outline: 2px solid var(--muted); outline-offset: 1px; }
+  .sep { width: 1px; height: 14px; background: var(--line); }
+  #temps { font-variant-numeric: tabular-nums; min-width: 92px; }
+  #temps.actif { color: #2fbf5b; font-size: 18px; font-weight: 600; }
+  #nom { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #aide { margin-left: auto; cursor: help; }
+  #ruban {
+    flex: none; display: flex; gap: 6px; padding: 5px 10px; overflow-x: auto;
+    border-bottom: 1px solid var(--line); scrollbar-width: none;
+  }
+  #ruban:empty { display: none; }
+  #ruban button {
+    flex: none; font: 12px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 12px; padding: 3px 11px; cursor: pointer;
+  }
+  #ruban button:hover { color: var(--fg); border-color: var(--muted); }
+  #ruban button:focus-visible { outline: 2px solid var(--muted); outline-offset: 1px; }
+  #ruban button.actif { background: #1f8f3f; border-color: #1f8f3f; color: #fff; }
+  #zone {
+    flex: 1; overflow-y: scroll; position: relative;
+    scrollbar-width: thin; scrollbar-color: var(--muted) transparent;
+  }
+  #texte {
+    max-width: 1000px; margin: 0 auto; box-sizing: border-box;
+    padding: 20vh 4vw 85vh; text-align: center; line-height: 1.35;
+  }
+  #texte.vide { font-size: 18px; color: var(--muted); font-family: system-ui, sans-serif; line-height: 1.6; white-space: pre-wrap; }
+  .section {
+    margin: .3em 0; padding: .5em .8em; border-radius: 10px;
+    background: transparent; transition: background-color .35s; cursor: pointer;
+  }
+  .section.courante { background: var(--hl); }
+  .section .titre {
+    font: max(12px, .32em)/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--muted); margin-bottom: .6em;
+  }
+  .section .corps { white-space: pre-wrap; overflow-wrap: break-word; }
+  #pied { flex: none; height: 2px; background: var(--line); }
+  #pied div { height: 100%; width: 0; background: var(--muted); }
+</style>
+</head>
+<body>
+<div id="ruban" aria-label="Sections de la chanson"></div>
+<div id="barre">
+  <label class="fichier" title="Choisir un fichier texte (.txt)">Fichier…
+    <input type="file" id="fichier" accept=".txt,text/plain">
+  </label>
+  <span id="nom"></span>
+  <span class="sep"></span>
+  <button id="jouer" title="Lecture (espace)" aria-label="Lecture">▶</button>
+  <button id="pause" title="Pause (espace)" aria-label="Pause">❚❚</button>
+  <button id="debut" title="Recommencer au début" aria-label="Recommencer">↺</button>
+  <span class="sep"></span>
+  <button id="moins" title="Réduire le texte" aria-label="Réduire le texte">▼</button>
+  <button id="plus" title="Agrandir le texte" aria-label="Agrandir le texte">▲</button>
+  <span id="taille">36</span>
+  <span class="sep"></span>
+  <label title="Cocher pour un fond blanc"><input type="checkbox" id="clair"> fond blanc</label>
+  <span class="sep"></span>
+  <span id="temps">0:00 / —</span>
+  <span id="aide" title="Chaque section commence par une ligne : =Nom m:ss&#10;Exemple : =Chorus 0:23&#10;Première ligne facultative (sans =) : durée totale mm:ss et/ou taille des caractères, ex. 03:45 48&#10;Cliquer sur une section pour s’y rendre.">ⓘ</span>
+</div>
+<div id="zone">
+  <div id="texte" class="vide">Choisissez un fichier texte (.txt) contenant les paroles.
+
+Chaque section commence par une ligne qui donne son nom et son temps de début :
+=Intro 0:00
+=Chorus 0:23
+Paroles…
+
+Première ligne facultative : la durée totale (mm:ss) et/ou la taille des caractères, par exemple
+03:45 48</div>
+</div>
+<div id="pied"><div id="jauge"></div></div>
+
+<script>
+// ============================================================
+//  TEXTE PAR DÉFAUT (facultatif)
+//  Collez vos paroles entre les accents graves ci-dessous : elles
+//  seront chargées automatiquement à l’ouverture de la page.
+//  Même format qu’un fichier : première ligne facultative, puis
+//  des sections =Nom m:ss. Laissez vide pour ne rien charger.
+//  (Évitez d’y écrire un accent grave ` ou la séquence ${ )
+// ============================================================
+var TEXTE_PAR_DEFAUT = String.raw`
+=Intro 0:00
+Intro !
+=Verse 1 0:12
+It's not your situation
+I just need contemplation over you
+I'm not so systematic
+It's just that I'm an addict for your love
+=Pre Chorus 0:32
+I'm not the only one that holds you
+I never ever should have told you
+You're my only girl
+I'm not the only one that holds you
+I never ever should have told you
+You're my only world
+=Verse 2 0:52
+Just think how long I've known you
+It's wrong for me to own you, lock and key
+It's really not confusing
+I'm just the young illusion, can't you see?
+=Pre Chorus 01:11
+I'm not the only one that holds you
+I never ever should have told you
+You're my only girl
+I'm not the only one that holds you
+I never ever should have told you
+You're my only world
+=Chorus 01:31
+Georgy Porgy, pudding pie
+Kissed the girls and made them cry
+Georgy Porgy, pudding pie
+Kissed the girls and made them cry
+Georgy Porgy, pudding pie
+Kissed the girls and made them cry
+Kissed the girls and made them cry
+Kissed the girls and made them cry
+=Break 1:52
+=Instrumental 2:01
+=Verse 3 2:21
+It's not your situation
+I just need contemplation over you
+I'm not so systematic
+It's just that I'm an addict for your love
+=Pre Chorus 3 2:40
+I'm not the only one that holds you
+I never ever should have told you
+You're my only girl
+I'm not the only one that holds you
+I never ever should have told you
+You're my only world
+=Chorus 2 3:01
+Georgy Porgy, pudding pie
+Kissed the girls and made them cry
+Georgy Porgy, pudding pie
+Kissed the girls and made them cry
+Georgy Porgy, pudding pie
+Kissed the girls and made them cry
+Georgy Porgy, pudding pie
+Kissed the girls and made them cry
+Georgy Porgy, pudding pie
+Kissed the girls and made them cry
+Kissed the girls and made them cry
+Kissed the girls and made them cry
+Georgy Porgy, pudding pie
+Kissed the girls and made them cry
+Kissed the girls and made them cry
+Kissed the girls and made them high
+=Chorus 3 3:40
+Georgy, yeah, Porgy, yeah
+Kissed the girls and made them cry
+Kissed the girls and made them cry
+Georgy, yeah, Porgy
+Kissed the girls and made them cry
+Kissed the girls and made them cry
+=Outro 4:00
+`;
+// ============================================================
+
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var zone = $('zone'), texte = $('texte'), ruban = $('ruban');
+  var TAILLE_DEFAUT = 36, MIN = 12, MAX = 240, MARGE_FIN = 30;
+  var duree = 0, taille = TAILLE_DEFAUT, fin = 0;
+  var ecoule = 0, enCours = false, dernier = 0, aDuTexte = false;
+  var sections = [], courant = -1;
+  var reduit = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function fmt(s) {
+    s = Math.max(0, Math.floor(s));
+    var m = Math.floor(s / 60), r = s % 60;
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+  function afficherTemps() {
+    $('temps').textContent = fmt(ecoule) + ' / ' + (duree ? fmt(duree) : '—');
+    $('jauge').style.width = (fin ? Math.min(100, ecoule / fin * 100) : 0) + '%';
+  }
+  function indexA(t) {
+    var i = -1;
+    for (var k = 0; k < sections.length; k++) { if (sections[k].start <= t) i = k; else break; }
+    return i;
+  }
+  function aller(i, lisse) {
+    if (i < 0) { zone.scrollTo({ top: 0, behavior: lisse && !reduit ? 'smooth' : 'auto' }); return; }
+    var top = sections[i].el.offsetTop - zone.clientHeight * 0.18;
+    zone.scrollTo({ top: Math.max(0, top), behavior: lisse && !reduit ? 'smooth' : 'auto' });
+  }
+  // Met en évidence la section courante ; ne fait défiler que lorsqu’elle change
+  function miseAJour(forcer, lisse) {
+    var i = indexA(ecoule);
+    if (i !== courant || forcer) {
+      if (courant >= 0 && sections[courant]) {
+        sections[courant].el.classList.remove('courante');
+        sections[courant].btn.classList.remove('actif');
+      }
+      courant = i;
+      if (i >= 0) {
+        var b = sections[i].btn;
+        sections[i].el.classList.add('courante');
+        b.classList.add('actif');
+        ruban.scrollTo({ left: b.offsetLeft - (ruban.clientWidth - b.offsetWidth) / 2, behavior: lisse && !reduit ? 'smooth' : 'auto' });
+      }
+      aller(i, lisse);
+    }
+    afficherTemps();
+  }
+
+  function jouer() {
+    if (!aDuTexte || enCours) return;
+    if (ecoule >= fin) { ecoule = 0; miseAJour(true, false); }
+    enCours = true; dernier = performance.now();
+    $('temps').classList.add('actif');
+    requestAnimationFrame(tick);
+  }
+  function pause() { enCours = false; $('temps').classList.remove('actif'); }
+  function tick(t) {
+    if (!enCours) return;
+    ecoule = Math.min(fin, ecoule + (t - dernier) / 1000);
+    dernier = t;
+    miseAJour(false, true);
+    if (ecoule >= fin) { enCours = false; $('temps').classList.remove('actif'); return; }
+    requestAnimationFrame(tick);
+  }
+  function appliquerTaille() {
+    texte.style.fontSize = taille + 'px';
+    $('taille').textContent = taille;
+    if (aDuTexte && courant >= 0) aller(courant, false);
+  }
+
+  // Lecture de l’en-tête facultatif (durée mm:ss et/ou taille)
+  function enTete(ligne) {
+    var jetons = ligne.trim().split(/[\s,;]+/).filter(Boolean);
+    var d = null, s = null, ok = jetons.length > 0;
+    jetons.forEach(function (j) {
+      var m;
+      if ((m = j.match(/^(\d{1,3}):([0-5]\d)$/))) d = +m[1] * 60 + +m[2];
+      else if ((m = j.match(/^(\d{2,3})(?:px|pt)?$/))) s = +m[1];
+      else ok = false;
+    });
+    return ok && (d !== null || s !== null) ? { duree: d, taille: s } : null;
+  }
+
+  function analyser(brut) {
+    var lignes = brut.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n');
+    var h = enTete(lignes[0]);
+    if (h) lignes.shift();
+    var liste = [], cur = null, re = /^=\s*(.+?)\s+(\d{1,3}):([0-5]\d)\s*$/;
+    lignes.forEach(function (l) {
+      var m = l.match(re);
+      if (m) {
+        cur = { nom: m[1], start: +m[2] * 60 + +m[3], lignes: [] };
+        liste.push(cur);
+      } else {
+        if (!cur) { if (!l.trim()) return; cur = { nom: '', start: 0, lignes: [] }; liste.push(cur); }
+        cur.lignes.push(l);
+      }
+    });
+    liste.sort(function (a, b) { return a.start - b.start; });
+    return { h: h, liste: liste };
+  }
+
+  function construire(liste) {
+    texte.className = '';
+    texte.textContent = '';
+    ruban.textContent = '';
+    sections = liste.map(function (s, idx) {
+      var el = document.createElement('div');
+      el.className = 'section';
+      if (s.nom) {
+        var t = document.createElement('div');
+        t.className = 'titre';
+        t.textContent = s.nom + ' · ' + fmt(s.start);
+        el.appendChild(t);
+      }
+      var c = document.createElement('div');
+      c.className = 'corps';
+      c.textContent = s.lignes.join('\n').replace(/^\n+|\s+$/g, '');
+      el.appendChild(c);
+      el.title = 'Aller à cette section';
+      el.addEventListener('click', function () {
+        if (String(window.getSelection()).length) return;
+        ecoule = s.start;
+        miseAJour(true, true);
+      });
+      texte.appendChild(el);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = s.nom || 'Début';
+      btn.title = 'Démarrer à ' + fmt(s.start);
+      btn.addEventListener('click', function () {
+        ecoule = s.start;
+        miseAJour(true, true);
+        jouer();
+        btn.blur();
+      });
+      ruban.appendChild(btn);
+      return { el: el, btn: btn, start: s.start };
+    });
+  }
+
+  // Charge un texte (fichier choisi ou texte par défaut)
+  function charger(brut, nomFichier) {
+    var r = analyser(brut);
+    pause();
+    if (!r.liste.length) {
+      ruban.textContent = '';
+      texte.className = 'vide';
+      texte.textContent = 'Ce fichier ne contient aucun texte.';
+      aDuTexte = false;
+      return;
+    }
+    duree = (r.h && r.h.duree) || 0;
+    taille = Math.min(MAX, Math.max(MIN, (r.h && r.h.taille) || TAILLE_DEFAUT));
+    courant = -1;
+    construire(r.liste);
+    fin = duree || (sections[sections.length - 1].start + MARGE_FIN);
+    aDuTexte = true;
+    $('nom').textContent = nomFichier;
+    $('nom').title = nomFichier;
+    ecoule = 0;
+    texte.style.fontSize = taille + 'px';
+    $('taille').textContent = taille;
+    miseAJour(true, false);
+  }
+
+  $('fichier').addEventListener('change', function (e) {
+    var f = e.target.files[0];
+    if (!f) return;
+    var lecteur = new FileReader();
+    lecteur.onload = function () { charger(String(lecteur.result), f.name); };
+    lecteur.readAsText(f, 'UTF-8');
+    e.target.value = '';
+  });
+
+  $('jouer').onclick = function () { jouer(); this.blur(); };
+  $('pause').onclick = function () { pause(); this.blur(); };
+  $('debut').onclick = function () { ecoule = 0; miseAJour(true, true); this.blur(); };
+  $('plus').onclick = function () { taille = Math.min(MAX, taille + 2); appliquerTaille(); this.blur(); };
+  $('moins').onclick = function () { taille = Math.max(MIN, taille - 2); appliquerTaille(); this.blur(); };
+  $('clair').onchange = function () {
+    document.documentElement.classList.toggle('clair', this.checked);
+    this.blur();
+  };
+  document.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+      e.preventDefault();
+      enCours ? pause() : jouer();
+    }
+  });
+
+  $('taille').textContent = taille;
+  afficherTemps();
+  if (TEXTE_PAR_DEFAUT.trim()) charger(TEXTE_PAR_DEFAUT, 'Georgy Porgy');
+})();
+</script>
+</body>
+</html>

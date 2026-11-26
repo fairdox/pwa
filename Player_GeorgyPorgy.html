@@ -78,8 +78,8 @@
 <body>
 <div id="ruban" aria-label="Sections de la chanson"></div>
 <div id="barre">
-  <label class="fichier" title="Choisir un fichier texte (.txt)">Fichier…
-    <input type="file" id="fichier" accept=".txt,text/plain">
+  <label class="fichier" title="Choisir le fichier texte (.txt) et, en même temps, le .mp3 du même nom (sélection multiple)">Fichier…
+    <input type="file" id="fichier" accept=".txt,.mp3,text/plain,audio/mpeg" multiple>
   </label>
   <span id="nom"></span>
   <span class="sep"></span>
@@ -194,6 +194,14 @@ Kissed the girls and made them cry
 Kissed the girls and made them cry
 =Outro 4:00
 `;
+
+// ============================================================
+//  MP3 PAR DÉFAUT (facultatif)
+//  Adresse directe d’un fichier mp3 sur Internet, par exemple
+//  "https://exemple.com/chanson.mp3". Il est associé au texte
+//  par défaut ci-dessus. Laissez vide pour ne rien charger.
+// ============================================================
+var URL_MP3 = "https://fairdox.github.io/pwa/GeorgyPorgy.mp3";
 // ============================================================
 
 (function () {
@@ -203,6 +211,7 @@ Kissed the girls and made them cry
   var duree = 0, taille = TAILLE_DEFAUT, fin = 0;
   var ecoule = 0, enCours = false, dernier = 0, aDuTexte = false;
   var sections = [], courant = -1;
+  var audio = null, audioUrl = null;
   var reduit = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function fmt(s) {
@@ -227,6 +236,7 @@ Kissed the girls and made them cry
   // Met en évidence la section courante ; ne fait défiler que lorsqu’elle change
   function miseAJour(forcer, lisse) {
     var i = indexA(ecoule);
+    if (forcer && audio) { try { audio.currentTime = ecoule; } catch (e) {} }
     if (i !== courant || forcer) {
       if (courant >= 0 && sections[courant]) {
         sections[courant].el.classList.remove('courante');
@@ -249,15 +259,22 @@ Kissed the girls and made them cry
     if (ecoule >= fin) { ecoule = 0; miseAJour(true, false); }
     enCours = true; dernier = performance.now();
     $('temps').classList.add('actif');
+    if (audio) {
+      try { audio.currentTime = ecoule; } catch (e) {}
+      var p = audio.play();
+      if (p && p.catch) p.catch(function () {});
+    }
     requestAnimationFrame(tick);
   }
-  function pause() { enCours = false; $('temps').classList.remove('actif'); }
+  function pause() { enCours = false; $('temps').classList.remove('actif'); if (audio) audio.pause(); }
   function tick(t) {
     if (!enCours) return;
-    ecoule = Math.min(fin, ecoule + (t - dernier) / 1000);
+    // Avec un mp3, l’horloge suit le son ; sinon elle avance toute seule
+    if (audio && !audio.paused) ecoule = Math.min(fin, audio.currentTime);
+    else ecoule = Math.min(fin, ecoule + (t - dernier) / 1000);
     dernier = t;
     miseAJour(false, true);
-    if (ecoule >= fin) { enCours = false; $('temps').classList.remove('actif'); return; }
+    if (ecoule >= fin) { enCours = false; $('temps').classList.remove('actif'); if (audio) audio.pause(); return; }
     requestAnimationFrame(tick);
   }
   function appliquerTaille() {
@@ -337,10 +354,30 @@ Kissed the girls and made them cry
     });
   }
 
+  // Prépare le mp3 associé (même nom que le fichier texte)
+  function preparerAudio(fichier, nomFichier) {
+    var a = new Audio();
+    audioUrl = (typeof fichier === 'string') ? fichier : URL.createObjectURL(fichier);
+    a.preload = 'auto';
+    a.src = audioUrl;
+    audio = a;
+    a.addEventListener('loadedmetadata', function () {
+      if (audio === a && !duree && isFinite(a.duration)) { duree = fin = a.duration; afficherTemps(); }
+    });
+    a.addEventListener('error', function () {
+      if (audio !== a) return;
+      audio = null;
+      $('nom').textContent = nomFichier + ' (mp3 illisible)';
+    });
+  }
+
   // Charge un texte (fichier choisi ou texte par défaut)
-  function charger(brut, nomFichier) {
+  function charger(brut, nomFichier, fichierAudio) {
     var r = analyser(brut);
     pause();
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    audio = null; audioUrl = null;
+    if (fichierAudio) preparerAudio(fichierAudio, nomFichier);
     if (!r.liste.length) {
       ruban.textContent = '';
       texte.className = 'vide';
@@ -354,7 +391,7 @@ Kissed the girls and made them cry
     construire(r.liste);
     fin = duree || (sections[sections.length - 1].start + MARGE_FIN);
     aDuTexte = true;
-    $('nom').textContent = nomFichier;
+    $('nom').textContent = nomFichier + (audio ? ' ♪' : '');
     $('nom').title = nomFichier;
     ecoule = 0;
     texte.style.fontSize = taille + 'px';
@@ -363,12 +400,23 @@ Kissed the girls and made them cry
   }
 
   $('fichier').addEventListener('change', function (e) {
-    var f = e.target.files[0];
-    if (!f) return;
-    var lecteur = new FileReader();
-    lecteur.onload = function () { charger(String(lecteur.result), f.name); };
-    lecteur.readAsText(f, 'UTF-8');
+    var fichiers = Array.prototype.slice.call(e.target.files);
     e.target.value = '';
+    var estAudio = function (x) { return /\.mp3$/i.test(x.name) || /^audio\//.test(x.type); };
+    var base = function (n) { return n.replace(/\.[^.]*$/, '').toLowerCase(); };
+    var f = fichiers.filter(function (x) { return !estAudio(x); })[0];
+    if (!f) return;
+    var son = fichiers.filter(function (x) { return estAudio(x) && base(x.name) === base(f.name); })[0] || null;
+    var autreMp3 = !son && fichiers.some(estAudio);
+    var lecteur = new FileReader();
+    lecteur.onload = function () {
+      charger(String(lecteur.result), f.name, son);
+      if (autreMp3) {
+        $('nom').textContent = f.name + ' (mp3 ignoré)';
+        $('nom').title = 'Le mp3 doit avoir le même nom que le fichier texte';
+      }
+    };
+    lecteur.readAsText(f, 'UTF-8');
   });
 
   $('jouer').onclick = function () { jouer(); this.blur(); };
